@@ -272,32 +272,43 @@ export default function Investments() {
             <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
           </header>
 
-          <section className="grid md:grid-cols-3 gap-4 mb-5">
-            <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-              <p className="text-zinc-500 text-sm mb-2">Invested</p>
-              <p className="text-2xl font-semibold">
-                {formatCurrency(totals.investedTotal, currency)}
-              </p>
-              <p className="text-xs text-zinc-600 mt-2">Total capital</p>
-            </div>
+          <section className="grid md:grid-cols-3 gap-4 mb-8">
+  {/* Invested */}
+  <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+    <p className="text-zinc-500 text-sm mb-2">Invested</p>
+    <p className="text-2xl font-semibold">
+      {formatCurrency(totals.investedTotal, currency)}
+    </p>
+    <p className="text-xs text-zinc-600 mt-2">This month</p>
+  </div>
 
-            <div className="rounded-[26px] bg-zinc-900/72 border border-white/5 p-5 shadow-[0_12px_30px_rgba(0,0,0,0.22)]">
-              <p className="text-zinc-500 text-sm mb-2">Current Value</p>
-              <p className="text-[30px] leading-none font-semibold tracking-tight">
-                {formatCurrency(totals.currentTotal, currency)}
-              </p>
-              <p className="text-xs text-zinc-600 mt-2">Portfolio value</p>
-            </div>
+  {/* Current Value */}
+  <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+    <p className="text-zinc-500 text-sm mb-2">Current Value</p>
+    <p className="text-2xl font-semibold">
+      {formatCurrency(totals.currentTotal, currency)}
+    </p>
+    <p className="text-xs text-zinc-600 mt-2">Portfolio</p>
+  </div>
 
-            <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-              <p className="text-zinc-500 text-sm mb-2">Profit</p>
-              <p className={`text-2xl font-semibold ${profitTone}`}>
-                {formatCurrency(totals.profit, currency)} (
-                {totals.profitPct.toFixed(1)}%)
-              </p>
-              <p className="text-xs text-zinc-600 mt-2">Overall result</p>
-            </div>
-          </section>
+  {/* Profit */}
+  <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+    <p className="text-zinc-500 text-sm mb-2">Profit</p>
+    
+    <p className="text-2xl font-semibold text-white">
+      {formatCurrency(totals.profit, currency)}
+      <span
+        className={`ml-2 text-sm ${
+          totals.profit >= 0 ? "text-green-500" : "text-red-500"
+        }`}
+      >
+        ({totals.profitPct.toFixed(1)}%)
+      </span>
+    </p>
+
+    <p className="text-xs text-zinc-600 mt-2">All time</p>
+  </div>
+</section>
 
           <section className="mb-8">
             <div className="rounded-[24px] bg-zinc-900/35 border border-white/5 px-5 py-4">
