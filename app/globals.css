@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* TOKENS */
+:root {
+  --accent: #F5A623;
+  --accent-strong: #FFB84D;
+  --accent-soft: #D48806;
+  --accent-muted: #7A5A1A;
+
+  --bg: #000000;
+  --bg-soft: #0B0B0F;
+
+  --card: #111114;
+  --card-soft: #16161A;
+
+  --border: rgba(255,255,255,0.06);
+  --border-soft: rgba(255,255,255,0.04);
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+
+  --profit: #22C55E;
+  --loss: #EF4444;
+}
+
+/* 👇 AQUI */
+html,
+body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
