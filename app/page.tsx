@@ -155,7 +155,7 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         <header className="mb-10">
           <div className="flex items-center gap-2">
-            <<header className="mb-6">
+            <header className="mb-6">
   <AeraLogo size={36} />
   <p className="text-zinc-500 mt-2">
     See your money clearly.
