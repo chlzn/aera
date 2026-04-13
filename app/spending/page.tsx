@@ -348,7 +348,7 @@ export default function Spending() {
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-95 cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
+                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
                 >
                   + Add transaction
                 </button>
@@ -364,7 +364,7 @@ export default function Spending() {
                 <button
                   type="button"
                   onClick={() => setFilter("all")}
-                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-95 ${
+                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                     filter === "all"
                       ? "bg-[var(--accent)] text-black"
                       : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
@@ -376,7 +376,7 @@ export default function Spending() {
                 <button
                   type="button"
                   onClick={() => setFilter("income")}
-                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-95 ${
+                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                     filter === "income"
                       ? "bg-[var(--accent)] text-black"
                       : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
@@ -388,7 +388,7 @@ export default function Spending() {
                 <button
                   type="button"
                   onClick={() => setFilter("expense")}
-                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-95 ${
+                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                     filter === "expense"
                       ? "bg-[var(--accent)] text-black"
                       : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
@@ -420,7 +420,7 @@ export default function Spending() {
                     key={entry.id}
                     type="button"
                     onClick={() => openEditModal(entry)}
-                    className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.99] ${
+                    className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
                       index !== filteredEntries.length - 1
                         ? "border-b border-white/5"
                         : ""
@@ -458,12 +458,15 @@ export default function Spending() {
       </main>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60" onClick={closeModal}>
+        <div
+  className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+  onClick={closeModal}
+>
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
-              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] px-4 pt-4 pb-5 md:px-5 md:pt-5 md:pb-6"
-              onClick={(e) => e.stopPropagation()}
-            >
+  className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+  onClick={(e) => e.stopPropagation()}
+>
               <div className="flex items-center justify-between mb-4">
                 <p className="text-zinc-400 text-sm">
                   {editingId ? "Edit Transaction" : "New Transaction"}
@@ -483,7 +486,7 @@ export default function Spending() {
                   <button
                     type="button"
                     onClick={() => setType("expense")}
-                    className={`flex-1 rounded-full h-50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-95 ${
+                    className={`flex-1 rounded-full h-50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                       type === "expense"
                         ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -495,7 +498,7 @@ export default function Spending() {
                   <button
                     type="button"
                     onClick={() => setType("income")}
-                    className={`flex-1 rounded-full h-[50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-95 ${
+                    className={`flex-1 rounded-full h-[50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                       type === "income"
                         ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -551,7 +554,7 @@ export default function Spending() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-95 cursor-pointer touch-manipulation mt-2"
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
                   {editingId ? "Save transaction" : "Add transaction"}
                 </button>

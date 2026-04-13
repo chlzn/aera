@@ -326,7 +326,7 @@ export default function Investments() {
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-95 cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
+                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
                 >
                   + Add asset
                 </button>
@@ -380,7 +380,7 @@ export default function Investments() {
                       key={asset.id}
                       type="button"
                       onClick={() => openEditModal(asset)}
-                      className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.99] ${
+                      className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
                         index !== filteredAssets.length - 1
                           ? "border-b border-white/5"
                           : ""
@@ -433,12 +433,15 @@ export default function Investments() {
       </main>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60" onClick={closeModal}>
+        <div
+  className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+  onClick={closeModal}
+>
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
-              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
+  className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+  onClick={(e) => e.stopPropagation()}
+>
               <div className="flex items-center justify-between mb-4">
                 <p className="text-zinc-400 text-sm">
                   {editingId ? "Edit Asset" : "New Asset"}
@@ -523,7 +526,7 @@ export default function Investments() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-95 cursor-pointer touch-manipulation mt-1"
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
                 >
                   {editingId ? "Save asset" : "Add asset"}
                 </button>

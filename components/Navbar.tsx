@@ -28,15 +28,16 @@ export default function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              className={`py-2 transition-colors ${
+              className={`py-2 transition-all duration-150 ease-out ${
                 isActive
-                  ? "text-white font-medium"
+                  ? "text-white font-semibold"
                   : "text-zinc-500 hover:text-white"
               }`}
             >
               {link.label}
+
               {isActive && (
-                <div className="mt-1 h-[3px] w-6 mx-auto bg-[#F5A623] rounded-full" />
+                <div className="mt-1 h-[2px] w-8 mx-auto rounded-full bg-[#F5A623] transition-all duration-150 ease-out" />
               )}
             </Link>
           )
