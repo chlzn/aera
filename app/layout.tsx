@@ -27,14 +27,11 @@ export default function RootLayout({
           content="black-translucent"
         />
       </head>
-<body>
-  <CurrencyProvider>
-    {children}
-    <Navbar />
-  </CurrencyProvider>
-</body>
       <body>
-        <CurrencyProvider>{children}</CurrencyProvider>
+        <CurrencyProvider>
+          {children}
+          <Navbar />
+        </CurrencyProvider>
       </body>
     </html>
   )
