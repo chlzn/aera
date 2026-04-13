@@ -439,7 +439,7 @@ export default function Investments() {
             </Link>
             <Link href="/investments" className="relative text-white font-medium py-2">
               <span>Investments</span>
-              <span className="absolute left-1/2 top-full mt-0.5 h-1 w-6 -translate-x-1/2 rounded-full bg-[var(--accent)]" />
+              <span className="absolute left-1/2 top-full mt-1 h-[2px] w-8 -translate-x-1/2 rounded-full bg-[var(--accent)]" />
             </Link>
             <Link
               href="/settings"
