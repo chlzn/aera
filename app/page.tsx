@@ -154,17 +154,9 @@ export default function Home() {
     <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
       <div className="max-w-4xl mx-auto">
         <header className="mb-10">
-          <div className="flex items-center gap-2">
-            <header className="mb-6">
   <AeraLogo size={36} />
-  <p className="text-zinc-500 mt-2">
-    See your money clearly.
-  </p>
+  <p className="text-zinc-500 mt-2">See your money clearly.</p>
 </header>
-            <span className="inline-flex h-2 w-2 rounded-full bg-[var(--accent)]" />
-          </div>
-          <p className="text-zinc-500 mt-2">See your money clearly.</p>
-        </header>
 
         {!hasAnyData && (
           <section className="mb-8">
