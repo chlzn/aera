@@ -14,7 +14,7 @@ export default function AppShell({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setShowSplash(false)
-    }, 700)
+    }, 1400)
 
     return () => window.clearTimeout(timer)
   }, [])
