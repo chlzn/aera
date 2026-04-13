@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
+import AeraLogo from "@/components/AeraLogo"
 
 type Entry = {
   id: string
@@ -154,7 +155,12 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         <header className="mb-10">
           <div className="flex items-center gap-2">
-            <h1 className="text-4xl font-semibold tracking-tight">Aera</h1>
+            <<header className="mb-6">
+  <AeraLogo size={36} />
+  <p className="text-zinc-500 mt-2">
+    See your money clearly.
+  </p>
+</header>
             <span className="inline-flex h-2 w-2 rounded-full bg-[var(--accent)]" />
           </div>
           <p className="text-zinc-500 mt-2">See your money clearly.</p>
@@ -348,37 +354,7 @@ export default function Home() {
         </section>
       </div>
 
-      <nav
-        className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md bg-zinc-900/80 border border-white/5 rounded-[22px] px-3 py-2 backdrop-blur-xl shadow-[0_10px_36px_rgba(0,0,0,0.38)]"
-        style={{
-          bottom: "max(1rem, env(safe-area-inset-bottom))",
-        }}
-      >
-        <div className="grid grid-cols-4 text-center text-sm">
-          <Link href="/" className="relative text-white font-medium py-2">
-            <span>Home</span>
-            <span className="absolute left-1/2 top-full mt-1 h-[2px] w-8 -translate-x-1/2 rounded-full bg-[var(--accent)]" />
-          </Link>
-          <Link
-            href="/spending"
-            className="text-zinc-500 hover:text-white transition-colors duration-200 ease-out py-2"
-          >
-            Spending
-          </Link>
-          <Link
-            href="/investments"
-            className="text-zinc-500 hover:text-white transition-colors duration-200 ease-out py-2"
-          >
-            Investments
-          </Link>
-          <Link
-            href="/settings"
-            className="text-zinc-500 hover:text-white transition-colors duration-200 ease-out py-2"
-          >
-            Settings
-          </Link>
-        </div>
-      </nav>
+    
     </main>
   )
 }

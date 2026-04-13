@@ -1,5 +1,6 @@
 import { CurrencyProvider } from "@/context/currency-context"
 import "./globals.css"
+import Navbar from "@/components/Navbar"
 
 export const metadata = {
   title: "Aera",
@@ -26,6 +27,12 @@ export default function RootLayout({
           content="black-translucent"
         />
       </head>
+<body>
+  <CurrencyProvider>
+    {children}
+    <Navbar />
+  </CurrencyProvider>
+</body>
       <body>
         <CurrencyProvider>{children}</CurrencyProvider>
       </body>

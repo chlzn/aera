@@ -195,37 +195,7 @@ export default function Settings() {
         </div>
       </div>
 
-      <nav
-        className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md bg-zinc-900/80 border border-white/5 rounded-[22px] px-3 py-2 backdrop-blur-xl shadow-[0_10px_36px_rgba(0,0,0,0.38)]"
-        style={{
-          bottom: "max(1rem, env(safe-area-inset-bottom))",
-        }}
-      >
-        <div className="grid grid-cols-4 text-center text-sm">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-white transition-colors duration-200 ease-out py-2"
-          >
-            Home
-          </Link>
-          <Link
-            href="/spending"
-            className="text-zinc-500 hover:text-white transition-colors duration-200 ease-out py-2"
-          >
-            Spending
-          </Link>
-          <Link
-            href="/investments"
-            className="text-zinc-500 hover:text-white transition-colors duration-200 ease-out py-2"
-          >
-            Investments
-          </Link>
-          <Link href="/settings" className="relative text-white font-medium py-2">
-            <span>Settings</span>
-            <span className="absolute left-1/2 top-full mt-1 h-[2px] w-8 -translate-x-1/2 rounded-full bg-[var(--accent)]" />
-          </Link>
-        </div>
-      </nav>
+      
     </main>
   )
 }
