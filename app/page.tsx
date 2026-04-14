@@ -80,25 +80,35 @@ export default function Home() {
     [entries]
   )
 
-  const income = monthlyEntries
-    .filter((entry) => entry.type === "income")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+  const monthlyIncome = monthlyEntries
+  .filter((entry) => entry.type === "income")
+  .reduce((acc, entry) => acc + entry.amount, 0)
 
-  const expenses = monthlyEntries
-    .filter((entry) => entry.type === "expense")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+const monthlyExpenses = monthlyEntries
+  .filter((entry) => entry.type === "expense")
+  .reduce((acc, entry) => acc + entry.amount, 0)
 
   const investmentsTotal = investments.reduce(
     (acc, asset) => acc + (asset.currentValue || 0),
     0
   )
 
-  const netBalance = income - expenses + investmentsTotal
-  const netFlow = income - expenses
+  const totalIncome = entries
+  .filter((entry) => entry.type === "income")
+  .reduce((acc, entry) => acc + entry.amount, 0)
 
-  const totalFlow = income + expenses
-  const incomeWidth = totalFlow > 0 ? (income / totalFlow) * 100 : 0
-  const expensesWidth = totalFlow > 0 ? (expenses / totalFlow) * 100 : 0
+const totalExpenses = entries
+  .filter((entry) => entry.type === "expense")
+  .reduce((acc, entry) => acc + entry.amount, 0)
+
+const cash = totalIncome - totalExpenses
+
+  const netWorth = cash + investmentsTotal
+  const netFlow = monthlyIncome - monthlyExpenses
+
+  const totalFlow = monthlyIncome + monthlyExpenses
+  const incomeWidth = totalFlow > 0 ? (monthlyIncome / totalFlow) * 100 : 0
+  const expensesWidth = totalFlow > 0 ? (monthlyExpenses / totalFlow) * 100 : 0
 
   const recentEntries = [...entries].slice(-5).reverse()
   const hasAnyData = entries.length > 0 || investments.length > 0
@@ -186,11 +196,27 @@ export default function Home() {
           <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <p className="text-zinc-500 text-sm mb-3">Net Balance</p>
-                <h2 className="text-5xl font-semibold tracking-tight">
-                  {formatCurrency(netBalance, currency)}
-                </h2>
-              </div>
+  <p className="text-zinc-500 text-sm mb-3">Net Worth</p>
+
+  <h2 className="text-5xl font-semibold tracking-tight">
+    {formatCurrency(netWorth, currency)}
+  </h2>
+
+  <div className="mt-5 flex gap-6 flex-wrap text-sm">
+  <div className="flex flex-col">
+    <span className="text-zinc-500">Cash</span>
+    <span className="text-white font-medium">
+      {formatCurrency(cash, currency)}
+    </span>
+  </div>
+
+  <div className="flex flex-col">
+    <span className="text-zinc-500">Investments</span>
+    <span className="text-white font-medium">
+      {formatCurrency(investmentsTotal, currency)}
+    </span>
+  </div>
+</div>
 
               <span
                 className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${statusPillClass}`}
@@ -232,7 +258,7 @@ export default function Home() {
           <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
             <p className="text-zinc-500 text-sm mb-2">Expenses</p>
             <p className="text-2xl font-semibold">
-              {formatCurrency(expenses, currency)}
+              {formatCurrency(monthlyExpenses, currency)}
             </p>
             <p className="text-xs text-zinc-600 mt-2">This month</p>
           </div>

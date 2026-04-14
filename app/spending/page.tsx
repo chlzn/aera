@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
+import { isCurrentMonth } from "@/lib/date"
 
 type EntryType = "income" | "expense"
 
@@ -144,24 +145,29 @@ export default function Spending() {
     setCategory(defaultCategory)
   }, [type])
 
-  const filteredEntries = useMemo(() => {
-    return entries.filter((entry) => {
-      const matchesType = filter === "all" ? true : entry.type === filter
-      const matchesSearch = entry.description
-        .toLowerCase()
-        .includes(search.toLowerCase())
+  const monthlyEntries = useMemo(
+  () => entries.filter((entry) => isCurrentMonth(entry.date)),
+  [entries]
+)
 
-      return matchesType && matchesSearch
-    })
-  }, [entries, filter, search])
+const filteredEntries = useMemo(() => {
+  return monthlyEntries.filter((entry) => {
+    const matchesType = filter === "all" ? true : entry.type === filter
+    const matchesSearch = entry.description
+      .toLowerCase()
+      .includes(search.toLowerCase())
 
-  const income = entries
-    .filter((entry) => entry.type === "income")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+    return matchesType && matchesSearch
+  })
+}, [monthlyEntries, filter, search])
 
-  const expenses = entries
-    .filter((entry) => entry.type === "expense")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+  const income = monthlyEntries
+  .filter((entry) => entry.type === "income")
+  .reduce((acc, entry) => acc + entry.amount, 0)
+
+const expenses = monthlyEntries
+  .filter((entry) => entry.type === "expense")
+  .reduce((acc, entry) => acc + entry.amount, 0)
 
   const net = income - expenses
 
@@ -169,7 +175,7 @@ export default function Spending() {
     type === "income" ? incomeCategories : expenseCategories
 
   const spendingInsight = useMemo(() => {
-    if (entries.length === 0) {
+    if (monthlyEntries.length === 0) {
       return "No data yet — start tracking to understand your monthly flow."
     }
 
@@ -196,7 +202,7 @@ export default function Spending() {
     }
 
     return "You’re spending more than you earn this month."
-  }, [entries.length, income, expenses])
+  }, [monthlyEntries.length, income, expenses])
 
   const resetForm = () => {
     setDescription("")

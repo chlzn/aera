@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
+import { isCurrentMonth } from "@/lib/date"
 
 type AssetType =
   | "crypto"
@@ -122,6 +123,23 @@ export default function Investments() {
     }
   }, [assets])
 
+  const monthlyAssets = useMemo(
+  () => assets.filter((asset) => isCurrentMonth(asset.createdAt)),
+  [assets]
+)
+
+const monthlyInvested = monthlyAssets.reduce(
+  (acc, asset) => acc + asset.invested,
+  0
+)
+
+const monthlyCurrent = monthlyAssets.reduce(
+  (acc, asset) => acc + asset.currentValue,
+  0
+)
+
+const monthlyReturn = monthlyCurrent - monthlyInvested
+
   const filteredAssets = useMemo(() => {
     return assets.filter((asset) => {
       const matchesFilter = filter === "all" ? true : asset.type === filter
@@ -137,7 +155,7 @@ export default function Investments() {
   }, [assets, filter, search])
 
   const portfolioInsight = useMemo(() => {
-    if (assets.length === 0) {
+    if (monthlyAssets.length === 0) {
       return "No data yet — add your first asset to start tracking performance."
     }
 
@@ -150,7 +168,7 @@ export default function Investments() {
     }
 
     return "Your portfolio is currently flat."
-  }, [assets.length, totals.profit])
+  }, [monthlyAssets.length, totals.profit])
 
   const resetForm = () => {
     setName("")
@@ -279,7 +297,7 @@ export default function Investments() {
     <p className="text-2xl font-semibold">
       {formatCurrency(totals.investedTotal, currency)}
     </p>
-    <p className="text-xs text-zinc-600 mt-2">This month</p>
+    <p className="text-xs text-zinc-600 mt-2">All time</p>
   </div>
 
   {/* Current Value */}
@@ -307,6 +325,33 @@ export default function Investments() {
     </p>
 
     <p className="text-xs text-zinc-600 mt-2">All time</p>
+  </div>
+</section>
+
+<section className="grid md:grid-cols-3 gap-4 mb-8">
+  <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+    <p className="text-zinc-500 text-sm mb-2">Invested (This Month)</p>
+    <p className="text-xl font-semibold">
+      {formatCurrency(monthlyInvested, currency)}
+    </p>
+  </div>
+
+  <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+    <p className="text-zinc-500 text-sm mb-2">Current (This Month)</p>
+    <p className="text-xl font-semibold">
+      {formatCurrency(monthlyCurrent, currency)}
+    </p>
+  </div>
+
+  <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+    <p className="text-zinc-500 text-sm mb-2">Return (This Month)</p>
+    <p
+      className={`text-xl font-semibold ${
+        monthlyReturn >= 0 ? "text-green-500" : "text-red-500"
+      }`}
+    >
+      {formatCurrency(monthlyReturn, currency)}
+    </p>
   </div>
 </section>
 
