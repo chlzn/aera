@@ -159,7 +159,6 @@ export default function Investments() {
 
   const filteredPeriodAssets = useMemo(() => {
     return periodAssets.filter((asset) => {
-      const matchesFilter = filter === "all" ? true : asset.type === filter
       const query = search.toLowerCase()
 
       const matchesSearch =
@@ -167,9 +166,9 @@ export default function Investments() {
         asset.type.toLowerCase().includes(query) ||
         asset.ticker?.toLowerCase().includes(query)
 
-      return matchesFilter && matchesSearch
+      return matchesSearch
     })
-  }, [periodAssets, filter, search])
+  }, [periodAssets, search])
 
   const portfolioInsight = useMemo(() => {
     if (assets.length === 0) {
@@ -300,35 +299,33 @@ export default function Investments() {
             <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
           </header>
 
-          <section className="grid md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <p className="text-white text-sm font-medium mb-2">Current Value</p>
-              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-                <p className="text-2xl font-semibold">
+          <section className="mb-6">
+            <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
+              <div>
+                <p className="text-zinc-500 text-sm mb-3">Current Value</p>
+                <h2 className="text-5xl font-semibold tracking-tight">
                   {formatCurrency(totals.currentTotal, currency)}
-                </p>
-              </div>
-            </div>
+                </h2>
 
-            <div>
-              <p className="text-white text-sm font-medium mb-2">Profit</p>
-              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-                <p
-                  className={`text-2xl font-semibold ${
-                    totals.profit >= 0 ? "text-green-500" : "text-red-500"
-                  }`}
-                >
-                  {formatCurrency(totals.profit, currency)}
-                </p>
-              </div>
-            </div>
+                <div className="mt-5 flex gap-6 flex-wrap text-sm">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Invested</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(totals.investedTotal, currency)}
+                    </span>
+                  </div>
 
-            <div>
-              <p className="text-zinc-400 text-sm font-medium mb-2">Invested Total</p>
-              <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-                <p className="text-xl font-semibold text-zinc-300">
-                  {formatCurrency(totals.investedTotal, currency)}
-                </p>
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Profit</span>
+                    <span
+                      className={`font-medium ${
+                        totals.profit >= 0 ? "text-green-500" : "text-red-500"
+                      }`}
+                    >
+                      {formatCurrency(totals.profit, currency)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -431,8 +428,15 @@ export default function Investments() {
                             <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
                               <span>{formatAssetType(asset.type)}</span>
                               <span>•</span>
-                              <span>
-                                Invested {formatCurrency(asset.invested, currency)}
+                              <span>Invested {formatCurrency(asset.invested, currency)}</span>
+                              <span>•</span>
+                              <span
+                                className={
+                                  pct >= 0 ? "text-green-500" : "text-red-500"
+                                }
+                              >
+                                {pct >= 0 ? "+" : ""}
+                                {pct.toFixed(1)}%
                               </span>
                             </div>
                           </div>
@@ -440,17 +444,6 @@ export default function Investments() {
                           <div className="text-right shrink-0">
                             <p className="text-zinc-300 text-sm">
                               {formatCurrency(asset.currentValue, currency)}
-                            </p>
-                            <p
-                              className={`text-sm ${
-                                profit > 0
-                                  ? "text-green-500"
-                                  : profit < 0
-                                  ? "text-red-500"
-                                  : "text-zinc-400"
-                              }`}
-                            >
-                              {formatCurrency(profit, currency)} ({pct.toFixed(1)}%)
                             </p>
                           </div>
                         </button>
