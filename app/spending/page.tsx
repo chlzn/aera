@@ -152,31 +152,31 @@ export default function Spending() {
   }, [type])
 
   const availablePeriods = useMemo(() => {
-  return getAvailablePeriodsFromCurrentYear()
-}, [])
+    return getAvailablePeriodsFromCurrentYear()
+  }, [])
 
-const periodEntries = useMemo(() => {
-  return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
-}, [entries, selectedPeriod])
+  const periodEntries = useMemo(() => {
+    return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
+  }, [entries, selectedPeriod])
 
-const filteredEntries = useMemo(() => {
-  return periodEntries.filter((entry) => {
-    const matchesType = filter === "all" ? true : entry.type === filter
-    const matchesSearch = entry.description
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  const filteredEntries = useMemo(() => {
+    return periodEntries.filter((entry) => {
+      const matchesType = filter === "all" ? true : entry.type === filter
+      const matchesSearch = entry.description
+        .toLowerCase()
+        .includes(search.toLowerCase())
 
-    return matchesType && matchesSearch
-  })
-}, [periodEntries, filter, search])
+      return matchesType && matchesSearch
+    })
+  }, [periodEntries, filter, search])
 
   const income = periodEntries
-  .filter((entry) => entry.type === "income")
-  .reduce((acc, entry) => acc + entry.amount, 0)
+    .filter((entry) => entry.type === "income")
+    .reduce((acc, entry) => acc + entry.amount, 0)
 
-const expenses = periodEntries
-  .filter((entry) => entry.type === "expense")
-  .reduce((acc, entry) => acc + entry.amount, 0)
+  const expenses = periodEntries
+    .filter((entry) => entry.type === "expense")
+    .reduce((acc, entry) => acc + entry.amount, 0)
 
   const net = income - expenses
 
@@ -185,8 +185,8 @@ const expenses = periodEntries
 
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0) {
-  return "No data yet — start tracking to understand your monthly flow."
-}
+      return "No data yet — start tracking to understand your monthly flow."
+    }
 
     if (income <= 0 && expenses > 0) {
       return "You’re tracking spending, but no income has been added yet."
@@ -306,87 +306,66 @@ const expenses = periodEntries
   }
 
   const fieldClass =
-  "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
+    "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
+
   return (
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
           <header className="mb-6">
-  <h1 className="text-3xl font-semibold tracking-tight">Spending</h1>
-  <p className="text-zinc-500 mt-2">Track your cash flow clearly.</p>
-</header>
+            <h1 className="text-3xl font-semibold tracking-tight">Spending</h1>
+            <p className="text-zinc-500 mt-2">Track your cash flow clearly.</p>
+          </header>
 
-<div className="grid md:grid-cols-2 gap-3 mb-6">
-  {/* selects aqui */}
-</div>
+          <div className="mb-6">
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+            >
+              {availablePeriods.map((period) => (
+                <option key={period} value={period}>
+                  {formatPeriodLabel(period)}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="grid md:grid-cols-2 gap-3 mb-4">
-  <select
-    value={selectedPeriod}
-    onChange={(e) => setSelectedPeriod(e.target.value)}
-    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-  >
-    {availablePeriods.map((period) => (
-      <option key={period} value={period}>
-        {formatPeriodLabel(period)}
-      </option>
-    ))}
-  </select>
-
-  <select
-    value={filter}
-    onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
-    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-  >
-    <option value="all">All transactions</option>
-    <option value="income">Income</option>
-    <option value="expense">Expenses</option>
-  </select>
-</div>  
-
-        <div className="mb-3">
-            <p className="text-sm text-zinc-500">
-              {formatPeriodLabel(selectedPeriod)}
-          </p>
-        </div>
-
-          <section className="grid md:grid-cols-3 gap-4 mb-5">
-  <div>
-    <p className="text-white text-sm font-medium mb-2">Income</p>
-    <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-      <p className="text-2xl font-semibold">
-        {formatCurrency(income, currency)}
-      </p>
-    </div>
-  </div>
-
-  <div>
-    <p className="text-white text-sm font-medium mb-2">Expenses</p>
-    <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-      <p className="text-2xl font-semibold">
-        {formatCurrency(expenses, currency)}
-      </p>
-    </div>
-  </div>
-
-  <div>
-    <p className="text-white text-sm font-medium mb-2">Net</p>
-    <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-      <p
-        className={`text-2xl font-semibold ${
-          net >= 0 ? "text-green-500" : "text-red-500"
-        }`}
-      >
-        {formatCurrency(net, currency)}
-      </p>
-    </div>
-  </div>
-</section>
-
-          <section className="mb-8">
-            <div className="rounded-[24px] bg-zinc-900/35 border border-white/5 px-5 py-4">
-              <p className="text-sm text-zinc-300">{spendingInsight}</p>
+          <section className="grid md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <p className="text-white text-sm font-medium mb-2">Income</p>
+              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                <p className="text-2xl font-semibold">
+                  {formatCurrency(income, currency)}
+                </p>
+              </div>
             </div>
+
+            <div>
+              <p className="text-white text-sm font-medium mb-2">Expenses</p>
+              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                <p className="text-2xl font-semibold">
+                  {formatCurrency(expenses, currency)}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-white text-sm font-medium mb-2">Net</p>
+              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                <p
+                  className={`text-2xl font-semibold ${
+                    net >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {formatCurrency(net, currency)}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mb-6">
+            <p className="text-sm text-zinc-400">{spendingInsight}</p>
           </section>
 
           <section className="mb-8">
@@ -416,8 +395,17 @@ const expenses = periodEntries
             <div className="mb-4">
               <p className="text-zinc-500 text-sm mb-4">Transaction history</p>
 
-              
-              
+              <div className="mb-4">
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+                  className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                >
+                  <option value="all">All transactions</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expenses</option>
+                </select>
+              </div>
 
               <input
                 placeholder="Search transactions"
@@ -429,7 +417,9 @@ const expenses = periodEntries
 
             {filteredEntries.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                <p className="text-zinc-300 text-sm">No transactions in this period.</p>
+                <p className="text-zinc-300 text-sm">
+                  No transactions in this period.
+                </p>
                 <p className="text-zinc-600 text-sm mt-1">
                   Select another month or add a new transaction.
                 </p>
@@ -474,20 +464,18 @@ const expenses = periodEntries
             )}
           </section>
         </div>
-
-       
       </main>
 
       {isModalOpen && (
         <div
-  className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
-  onClick={closeModal}
->
+          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={closeModal}
+        >
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
-  className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
-  onClick={(e) => e.stopPropagation()}
->
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-zinc-400 text-sm">
                   {editingId ? "Edit Transaction" : "New Transaction"}
@@ -507,7 +495,7 @@ const expenses = periodEntries
                   <button
                     type="button"
                     onClick={() => setType("expense")}
-                    className={`flex-1 rounded-full h-50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
+                    className={`flex-1 rounded-full h-[50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                       type === "expense"
                         ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -564,11 +552,11 @@ const expenses = periodEntries
                 </div>
 
                 <input
-  type="date"
-  value={date}
-  onChange={(e) => setDate(e.target.value)}
-  className="w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
-/>
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
+                />
 
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
 
