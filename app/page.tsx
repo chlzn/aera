@@ -203,20 +203,27 @@ const cash = totalIncome - totalExpenses
   </h2>
 
   <div className="mt-5 flex gap-6 flex-wrap text-sm">
-  <div className="flex flex-col">
-    <span className="text-zinc-500">Cash</span>
-    <span className="text-white font-medium">
-      {formatCurrency(cash, currency)}
-    </span>
-  </div>
+    <div className="flex flex-col">
+      <span className="text-zinc-500">Cash</span>
+      <span className="text-white font-medium">
+        {formatCurrency(cash, currency)}
+      </span>
+    </div>
 
-  <div className="flex flex-col">
-    <span className="text-zinc-500">Investments</span>
-    <span className="text-white font-medium">
-      {formatCurrency(investmentsTotal, currency)}
-    </span>
+    <div className="flex flex-col">
+      <span className="text-zinc-500">Investments</span>
+      <span className="text-white font-medium">
+        {formatCurrency(investmentsTotal, currency)}
+      </span>
+    </div>
   </div>
 </div>
+
+<span
+  className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${statusPillClass}`}
+>
+  {balanceStatus.label}
+</span>
 
               <span
                 className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${statusPillClass}`}
@@ -250,7 +257,7 @@ const cash = totalIncome - totalExpenses
           <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
             <p className="text-zinc-500 text-sm mb-2">Income</p>
             <p className="text-2xl font-semibold">
-              {formatCurrency(income, currency)}
+              {formatCurrency(monthlyIncome, currency)}
             </p>
             <p className="text-xs text-zinc-600 mt-2">This month</p>
           </div>
