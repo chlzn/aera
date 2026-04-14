@@ -322,7 +322,7 @@ export default function Spending() {
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="w-full appearance-none bg-zinc-900/60 border border-white/10 rounded-[22px] px-4 py-4 pr-10 outline-none transition-all duration-200 ease-out hover:bg-zinc-900/80 active:scale-[0.99]"
+                className="w-full appearance-none bg-zinc-900/75 border border-white/12 rounded-[24px] px-4 py-4 pr-12 text-white outline-none shadow-[0_6px_18px_rgba(0,0,0,0.16)] transition-all duration-200 ease-out hover:bg-zinc-900/90 active:scale-[0.995]"
               >
                 {availablePeriods.map((period) => (
                   <option key={period} value={period}>
@@ -331,41 +331,42 @@ export default function Spending() {
                 ))}
               </select>
 
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--accent)] text-lg">
                 ⌄
               </span>
             </div>
           </div>
 
-          <section className="grid md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <p className="text-white text-sm font-medium mb-2">Income</p>
-              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-                <p className="text-2xl font-semibold">
-                  {formatCurrency(income, currency)}
+          <section className="mb-6">
+            <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
+              <div>
+                <p className="text-zinc-500 text-sm mb-3">
+                  {formatPeriodLabel(selectedPeriod)}
                 </p>
-              </div>
-            </div>
 
-            <div>
-              <p className="text-white text-sm font-medium mb-2">Expenses</p>
-              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-                <p className="text-2xl font-semibold">
-                  {formatCurrency(expenses, currency)}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-white text-sm font-medium mb-2">Net</p>
-              <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-                <p
-                  className={`text-2xl font-semibold ${
-                    net >= 0 ? "text-green-500" : "text-red-500"
+                <h2
+                  className={`text-5xl font-semibold tracking-tight ${
+                    net >= 0 ? "text-white" : "text-white"
                   }`}
                 >
                   {formatCurrency(net, currency)}
-                </p>
+                </h2>
+
+                <div className="mt-5 flex gap-6 flex-wrap text-sm">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Income</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(income, currency)}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Expenses</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(expenses, currency)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -404,7 +405,7 @@ export default function Spending() {
               className="w-full flex items-center justify-between mb-4 text-left"
             >
               <p className="text-white text-sm font-medium">Transaction history</p>
-              <span className="text-zinc-400 text-lg">
+              <span className="text-[var(--accent)] text-lg">
                 {isHistoryOpen ? "⌃" : "⌄"}
               </span>
             </button>
