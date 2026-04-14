@@ -311,10 +311,38 @@ const expenses = periodEntries
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-9">
-            <h1 className="text-3xl font-semibold tracking-tight">Spending</h1>
-            <p className="text-zinc-500 mt-2">Track your cash flow clearly.</p>
-          </header>
+          <header className="mb-6">
+  <h1 className="text-3xl font-semibold tracking-tight">Spending</h1>
+  <p className="text-zinc-500 mt-2">Track your cash flow clearly.</p>
+</header>
+
+<div className="grid md:grid-cols-2 gap-3 mb-6">
+  {/* selects aqui */}
+</div>
+
+        <div className="grid md:grid-cols-2 gap-3 mb-4">
+  <select
+    value={selectedPeriod}
+    onChange={(e) => setSelectedPeriod(e.target.value)}
+    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+  >
+    {availablePeriods.map((period) => (
+      <option key={period} value={period}>
+        {formatPeriodLabel(period)}
+      </option>
+    ))}
+  </select>
+
+  <select
+    value={filter}
+    onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+  >
+    <option value="all">All transactions</option>
+    <option value="income">Income</option>
+    <option value="expense">Expenses</option>
+  </select>
+</div>  
 
         <div className="mb-3">
             <p className="text-sm text-zinc-500">
@@ -389,29 +417,7 @@ const expenses = periodEntries
               <p className="text-zinc-500 text-sm mb-4">Transaction history</p>
 
               
-              <div className="grid md:grid-cols-2 gap-3 mb-4">
-  <select
-    value={selectedPeriod}
-    onChange={(e) => setSelectedPeriod(e.target.value)}
-    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-  >
-    {availablePeriods.map((period) => (
-      <option key={period} value={period}>
-        {formatPeriodLabel(period)}
-      </option>
-    ))}
-  </select>
-
-  <select
-    value={filter}
-    onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
-    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-  >
-    <option value="all">All transactions</option>
-    <option value="income">Income</option>
-    <option value="expense">Expenses</option>
-  </select>
-</div>
+              
 
               <input
                 placeholder="Search transactions"
