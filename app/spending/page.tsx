@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
-import { isCurrentMonth } from "@/lib/date"
+import {
+  formatPeriodLabel,
+  getCurrentPeriodKey,
+  getPeriodKey,
+  isSamePeriod,
+} from "@/lib/period"
 
 type EntryType = "income" | "expense"
 
@@ -111,6 +116,7 @@ export default function Spending() {
 
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | EntryType>("all")
+  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState("")
@@ -145,13 +151,28 @@ export default function Spending() {
     setCategory(defaultCategory)
   }, [type])
 
-  const monthlyEntries = useMemo(
-  () => entries.filter((entry) => isCurrentMonth(entry.date)),
-  [entries]
-)
+  const availablePeriods = useMemo(() => {
+  const periods = entries
+    .map((entry) => getPeriodKey(entry.date))
+    .filter(Boolean) as string[]
+
+  return Array.from(new Set(periods)).sort().reverse()
+}, [entries])
+
+useEffect(() => {
+  if (availablePeriods.length === 0) return
+
+  if (!availablePeriods.includes(selectedPeriod)) {
+    setSelectedPeriod(availablePeriods[0])
+  }
+}, [availablePeriods, selectedPeriod])
+
+const periodEntries = useMemo(() => {
+  return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
+}, [entries, selectedPeriod])
 
 const filteredEntries = useMemo(() => {
-  return monthlyEntries.filter((entry) => {
+  return periodEntries.filter((entry) => {
     const matchesType = filter === "all" ? true : entry.type === filter
     const matchesSearch = entry.description
       .toLowerCase()
@@ -159,13 +180,13 @@ const filteredEntries = useMemo(() => {
 
     return matchesType && matchesSearch
   })
-}, [monthlyEntries, filter, search])
+}, [periodEntries, filter, search])
 
-  const income = monthlyEntries
+  const income = periodEntries
   .filter((entry) => entry.type === "income")
   .reduce((acc, entry) => acc + entry.amount, 0)
 
-const expenses = monthlyEntries
+const expenses = periodEntries
   .filter((entry) => entry.type === "expense")
   .reduce((acc, entry) => acc + entry.amount, 0)
 
@@ -175,9 +196,9 @@ const expenses = monthlyEntries
     type === "income" ? incomeCategories : expenseCategories
 
   const spendingInsight = useMemo(() => {
-    if (monthlyEntries.length === 0) {
-      return "No data yet — start tracking to understand your monthly flow."
-    }
+    if (periodEntries.length === 0) {
+  return "No data yet — start tracking to understand your monthly flow."
+}
 
     if (income <= 0 && expenses > 0) {
       return "You’re tracking spending, but no income has been added yet."
@@ -202,7 +223,7 @@ const expenses = monthlyEntries
     }
 
     return "You’re spending more than you earn this month."
-  }, [monthlyEntries.length, income, expenses])
+  }, [periodEntries.length, income, expenses])
 
   const resetForm = () => {
     setDescription("")
@@ -364,7 +385,26 @@ const expenses = monthlyEntries
 
           <section className="mb-24">
             <div className="mb-4">
-              <p className="text-zinc-500 text-sm mb-4">Transactions</p>
+              <p className="text-zinc-500 text-sm mb-4">Transaction history</p>
+
+              <div className="mb-4">
+  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+    {availablePeriods.map((period) => (
+      <button
+        key={period}
+        type="button"
+        onClick={() => setSelectedPeriod(period)}
+        className={`shrink-0 px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
+          selectedPeriod === period
+            ? "bg-[var(--accent)] text-black"
+            : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
+        }`}
+      >
+        {formatPeriodLabel(period)}
+      </button>
+    ))}
+  </div>
+</div>
 
               <div className="flex flex-wrap gap-2 mb-4">
                 <button
@@ -414,9 +454,9 @@ const expenses = monthlyEntries
 
             {filteredEntries.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                <p className="text-zinc-300 text-sm">No activity yet.</p>
+                <p className="text-zinc-300 text-sm">No transactions in this period.</p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Start by adding your first transaction.
+                Select another month or add a new transaction.
                 </p>
               </div>
             ) : (
