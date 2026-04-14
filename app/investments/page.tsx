@@ -86,6 +86,8 @@ export default function Investments() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState("")
+  const [isPortfolioOpen, setIsPortfolioOpen] = useState(true)
+  const [isMonthlyOpen, setIsMonthlyOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -149,6 +151,20 @@ export default function Investments() {
   const periodReturn = periodCurrent - periodInvested
 
   const filteredAssets = useMemo(() => {
+    return assets.filter((asset) => {
+      const matchesFilter = filter === "all" ? true : asset.type === filter
+      const query = search.toLowerCase()
+
+      const matchesSearch =
+        asset.name.toLowerCase().includes(query) ||
+        asset.type.toLowerCase().includes(query) ||
+        asset.ticker?.toLowerCase().includes(query)
+
+      return matchesFilter && matchesSearch
+    })
+  }, [assets, filter, search])
+
+  const filteredPeriodAssets = useMemo(() => {
     return periodAssets.filter((asset) => {
       const matchesFilter = filter === "all" ? true : asset.type === filter
       const query = search.toLowerCase()
@@ -163,20 +179,20 @@ export default function Investments() {
   }, [periodAssets, filter, search])
 
   const portfolioInsight = useMemo(() => {
-    if (periodAssets.length === 0) {
-      return "No data yet — add your first asset to start tracking this period."
+    if (assets.length === 0) {
+      return "No data yet — add your first asset to start tracking performance."
     }
 
-    if (periodReturn > 0) {
-      return "Your positions from this period are currently above cost."
+    if (totals.profit > 0) {
+      return "Your portfolio is above your invested capital."
     }
 
-    if (periodReturn < 0) {
-      return "Your positions from this period are currently below cost."
+    if (totals.profit < 0) {
+      return "Your portfolio is currently below your invested capital."
     }
 
-    return "Your positions from this period are currently flat."
-  }, [periodAssets.length, periodReturn])
+    return "Your portfolio is currently flat."
+  }, [assets.length, totals.profit])
 
   const resetForm = () => {
     setName("")
@@ -286,102 +302,39 @@ export default function Investments() {
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-6">
+          <header className="mb-8">
             <h1 className="text-3xl font-semibold tracking-tight">Investments</h1>
             <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
           </header>
 
-          <div className="mb-6">
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-            >
-              {availablePeriods.map((period) => (
-                <option key={period} value={period}>
-                  {formatPeriodLabel(period)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <section className="mb-8">
-            <p className="text-zinc-500 text-sm mb-4">Total</p>
-
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-white text-sm font-medium mb-2">Invested</p>
-                <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <section className="mb-6">
+            <div className="rounded-[28px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-zinc-500 text-xs mb-2">Invested</p>
                   <p className="text-2xl font-semibold">
                     {formatCurrency(totals.investedTotal, currency)}
                   </p>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-white text-sm font-medium mb-2">
-                  Current Value
-                </p>
-                <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                <div>
+                  <p className="text-zinc-500 text-xs mb-2">Current</p>
                   <p className="text-2xl font-semibold">
                     {formatCurrency(totals.currentTotal, currency)}
                   </p>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-white text-sm font-medium mb-2">Profit</p>
-                <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                <div>
+                  <p className="text-zinc-500 text-xs mb-2">Profit</p>
                   <p className="text-2xl font-semibold text-white">
                     {formatCurrency(totals.profit, currency)}
-                    <span
-                      className={`ml-2 text-sm ${
-                        totals.profit >= 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      ({totals.profitPct.toFixed(1)}%)
-                    </span>
                   </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="mb-6">
-            <p className="text-zinc-500 text-sm mb-4">
-              {formatPeriodLabel(selectedPeriod)}
-            </p>
-
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-white text-sm font-medium mb-2">Invested</p>
-                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(periodInvested, currency)}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-white text-sm font-medium mb-2">
-                  Current Value
-                </p>
-                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(periodCurrent, currency)}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-white text-sm font-medium mb-2">Return</p>
-                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
                   <p
-                    className={`text-xl font-semibold ${
-                      periodReturn >= 0 ? "text-green-500" : "text-red-500"
+                    className={`text-sm mt-1 ${
+                      totals.profit >= 0 ? "text-green-500" : "text-red-500"
                     }`}
                   >
-                    {formatCurrency(periodReturn, currency)}
+                    {totals.profitPct.toFixed(1)}%
                   </p>
                 </div>
               </div>
@@ -410,97 +363,240 @@ export default function Investments() {
             </div>
           </section>
 
-          <section className="mb-24">
-            <div className="mb-4">
-              <p className="text-zinc-500 text-sm mb-4">Portfolio history</p>
+          <section className="mb-6">
+            <button
+              type="button"
+              onClick={() => setIsPortfolioOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between text-left mb-4"
+            >
+              <p className="text-zinc-500 text-sm">Portfolio</p>
+              <span className="text-zinc-500 text-lg">
+                {isPortfolioOpen ? "⌃" : "⌄"}
+              </span>
+            </button>
 
-              <div className="mb-4">
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value as "all" | AssetType)}
-                  className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                >
-                  <option value="all">All types</option>
-                  {assetTypes.map((assetType) => (
-                    <option key={assetType.value} value={assetType.value}>
-                      {assetType.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {isPortfolioOpen && (
+              <>
+                <div className="mb-4">
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value as "all" | AssetType)}
+                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                  >
+                    <option value="all">All types</option>
+                    {assetTypes.map((assetType) => (
+                      <option key={assetType.value} value={assetType.value}>
+                        {assetType.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <input
-                placeholder="Search assets"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-              />
-            </div>
+                <div className="mb-4">
+                  <input
+                    placeholder="Search assets"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                  />
+                </div>
 
-            {filteredAssets.length === 0 ? (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                <p className="text-zinc-300 text-sm">No investments in this period.</p>
-                <p className="text-zinc-600 text-sm mt-1">
-                  Select another month or add a new asset.
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                {filteredAssets.map((asset, index) => {
-                  const profit = asset.currentValue - asset.invested
-                  const pct =
-                    asset.invested > 0 ? (profit / asset.invested) * 100 : 0
+                {filteredAssets.length === 0 ? (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+                    <p className="text-zinc-300 text-sm">No investments yet.</p>
+                    <p className="text-zinc-600 text-sm mt-1">
+                      Start by adding your first asset.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    {filteredAssets.map((asset, index) => {
+                      const profit = asset.currentValue - asset.invested
+                      const pct =
+                        asset.invested > 0 ? (profit / asset.invested) * 100 : 0
 
-                  return (
-                    <button
-                      key={asset.id}
-                      type="button"
-                      onClick={() => openEditModal(asset)}
-                      className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                        index !== filteredAssets.length - 1
-                          ? "border-b border-white/5"
-                          : ""
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-zinc-200 truncate">{asset.name}</p>
-                          {asset.ticker && (
-                            <span className="text-xs text-zinc-600 uppercase">
-                              {asset.ticker}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                          <span>{formatAssetType(asset.type)}</span>
-                          <span>•</span>
-                          <span>
-                            Invested {formatCurrency(asset.invested, currency)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <p className="text-zinc-300 text-sm">
-                          {formatCurrency(asset.currentValue, currency)}
-                        </p>
-                        <p
-                          className={`text-sm ${
-                            profit > 0
-                              ? "text-green-500"
-                              : profit < 0
-                              ? "text-red-500"
-                              : "text-zinc-400"
+                      return (
+                        <button
+                          key={asset.id}
+                          type="button"
+                          onClick={() => openEditModal(asset)}
+                          className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                            index !== filteredAssets.length - 1
+                              ? "border-b border-white/5"
+                              : ""
                           }`}
                         >
-                          {formatCurrency(profit, currency)} ({pct.toFixed(1)}%)
-                        </p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-zinc-200 truncate">{asset.name}</p>
+                              {asset.ticker && (
+                                <span className="text-xs text-zinc-600 uppercase">
+                                  {asset.ticker}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+                              <span>{formatAssetType(asset.type)}</span>
+                              <span>•</span>
+                              <span>
+                                Invested {formatCurrency(asset.invested, currency)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <p className="text-zinc-300 text-sm">
+                              {formatCurrency(asset.currentValue, currency)}
+                            </p>
+                            <p
+                              className={`text-sm ${
+                                profit > 0
+                                  ? "text-green-500"
+                                  : profit < 0
+                                  ? "text-red-500"
+                                  : "text-zinc-400"
+                              }`}
+                            >
+                              {formatCurrency(profit, currency)} ({pct.toFixed(1)}%)
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className="mb-24">
+            <button
+              type="button"
+              onClick={() => setIsMonthlyOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between text-left mb-4"
+            >
+              <p className="text-zinc-500 text-sm">Monthly activity</p>
+              <span className="text-zinc-500 text-lg">
+                {isMonthlyOpen ? "⌃" : "⌄"}
+              </span>
+            </button>
+
+            {isMonthlyOpen && (
+              <>
+                <div className="mb-6">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                  >
+                    {availablePeriods.map((period) => (
+                      <option key={period} value={period}>
+                        {formatPeriodLabel(period)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <section className="grid md:grid-cols-3 gap-4 mb-6">
+                  <div>
+                    <p className="text-white text-sm font-medium mb-2">Invested</p>
+                    <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                      <p className="text-xl font-semibold">
+                        {formatCurrency(periodInvested, currency)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-white text-sm font-medium mb-2">Current Value</p>
+                    <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                      <p className="text-xl font-semibold">
+                        {formatCurrency(periodCurrent, currency)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-white text-sm font-medium mb-2">Return</p>
+                    <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                      <p
+                        className={`text-xl font-semibold ${
+                          periodReturn >= 0 ? "text-green-500" : "text-red-500"
+                        }`}
+                      >
+                        {formatCurrency(periodReturn, currency)}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {filteredPeriodAssets.length === 0 ? (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+                    <p className="text-zinc-300 text-sm">No investments in this period.</p>
+                    <p className="text-zinc-600 text-sm mt-1">
+                      Select another month or add a new asset.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    {filteredPeriodAssets.map((asset, index) => {
+                      const profit = asset.currentValue - asset.invested
+                      const pct =
+                        asset.invested > 0 ? (profit / asset.invested) * 100 : 0
+
+                      return (
+                        <button
+                          key={asset.id}
+                          type="button"
+                          onClick={() => openEditModal(asset)}
+                          className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                            index !== filteredPeriodAssets.length - 1
+                              ? "border-b border-white/5"
+                              : ""
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-zinc-200 truncate">{asset.name}</p>
+                              {asset.ticker && (
+                                <span className="text-xs text-zinc-600 uppercase">
+                                  {asset.ticker}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+                              <span>{formatAssetType(asset.type)}</span>
+                              <span>•</span>
+                              <span>
+                                Invested {formatCurrency(asset.invested, currency)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <p className="text-zinc-300 text-sm">
+                              {formatCurrency(asset.currentValue, currency)}
+                            </p>
+                            <p
+                              className={`text-sm ${
+                                profit > 0
+                                  ? "text-green-500"
+                                  : profit < 0
+                                  ? "text-red-500"
+                                  : "text-zinc-400"
+                              }`}
+                            >
+                              {formatCurrency(profit, currency)} ({pct.toFixed(1)}%)
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>
