@@ -88,6 +88,7 @@ export default function Investments() {
   const [error, setError] = useState("")
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(true)
   const [isMonthlyOpen, setIsMonthlyOpen] = useState(false)
+  const [isMonthlyListOpen, setIsMonthlyListOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -431,7 +432,13 @@ export default function Investments() {
     <span>•</span>
     <span>Invested {formatCurrency(asset.invested, currency)}</span>
   </div>
+</div>
+                          </div>
 
+                          <div className="text-right shrink-0">
+  <p className="text-zinc-300 text-sm">
+    {formatCurrency(asset.currentValue, currency)}
+  </p>
   <p
     className={`text-[11px] mt-1 ${
       pct >= 0 ? "text-green-500" : "text-red-500"
@@ -441,13 +448,6 @@ export default function Investments() {
     {pct.toFixed(1)}%
   </p>
 </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <p className="text-zinc-300 text-sm">
-                              {formatCurrency(asset.currentValue, currency)}
-                            </p>
-                          </div>
                         </button>
                       )
                     })}
@@ -458,93 +458,110 @@ export default function Investments() {
           </section>
 
           <section className="mb-24">
-            <button
-              type="button"
-              onClick={() => setIsMonthlyOpen((prev) => !prev)}
-              className="w-full flex items-center justify-between text-left mb-4"
-            >
-              <p className="text-white text-sm font-medium">Monthly activity</p>
-              <span className="text-[var(--accent)] text-lg">
-                {isMonthlyOpen ? "⌃" : "⌄"}
-              </span>
-            </button>
+  <button
+    type="button"
+    onClick={() => setIsMonthlyOpen((prev) => !prev)}
+    className="w-full flex items-center justify-between text-left mb-4"
+  >
+    <p className="text-white text-sm font-medium">Monthly activity</p>
+    <span className="text-[var(--accent)] text-lg">
+      {isMonthlyOpen ? "⌃" : "⌄"}
+    </span>
+  </button>
 
-            {isMonthlyOpen && (
-              <>
-                <div className="mb-6">
-                  <select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                  >
-                    {availablePeriods.map((period) => (
-                      <option key={period} value={period}>
-                        {formatPeriodLabel(period)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+  {isMonthlyOpen && (
+    <>
+      <div className="mb-6">
+        <select
+          value={selectedPeriod}
+          onChange={(e) => setSelectedPeriod(e.target.value)}
+          className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+        >
+          {availablePeriods.map((period) => (
+            <option key={period} value={period}>
+              {formatPeriodLabel(period)}
+            </option>
+          ))}
+        </select>
+      </div>
 
-                <section className="mb-6">
-                  <div>
-                    <p className="text-white text-sm font-medium mb-2">
-                      Invested in {formatPeriodLabel(selectedPeriod)}
-                    </p>
-                    <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-                      <p className="text-xl font-semibold">
-                        {formatCurrency(periodInvested, currency)}
-                      </p>
+      <section className="mb-6">
+        <div>
+          <p className="text-white text-sm font-medium mb-2">
+            Invested in {formatPeriodLabel(selectedPeriod)}
+          </p>
+          <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+            <p className="text-xl font-semibold">
+              {formatCurrency(periodInvested, currency)}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {filteredPeriodAssets.length === 0 ? (
+        <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+          <p className="text-zinc-300 text-sm">No assets added in this period.</p>
+          <p className="text-zinc-600 text-sm mt-1">
+            Select another month or add a new asset.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setIsMonthlyListOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <p className="text-white text-sm font-medium">
+              Where your money went
+            </p>
+            <span className="text-[var(--accent)] text-lg">
+              {isMonthlyListOpen ? "⌃" : "⌄"}
+            </span>
+          </button>
+
+          {isMonthlyListOpen && (
+            <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+              {filteredPeriodAssets.map((asset, index) => (
+                <button
+                  key={asset.id}
+                  type="button"
+                  onClick={() => openEditModal(asset)}
+                  className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                    index !== filteredPeriodAssets.length - 1
+                      ? "border-b border-white/5"
+                      : ""
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-zinc-200 truncate">{asset.name}</p>
+                      {asset.ticker && (
+                        <span className="text-xs text-zinc-600 uppercase">
+                          {asset.ticker}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+                      <span>{formatAssetType(asset.type)}</span>
                     </div>
                   </div>
-                </section>
 
-                {filteredPeriodAssets.length === 0 ? (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                    <p className="text-zinc-300 text-sm">No assets added in this period.</p>
-                    <p className="text-zinc-600 text-sm mt-1">
-                      Select another month or add a new asset.
+                  <div className="text-right shrink-0">
+                    <p className="text-zinc-300 text-sm">
+                      {formatCurrency(asset.invested, currency)}
                     </p>
                   </div>
-                ) : (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                    {filteredPeriodAssets.map((asset, index) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => openEditModal(asset)}
-                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                          index !== filteredPeriodAssets.length - 1
-                            ? "border-b border-white/5"
-                            : ""
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-zinc-200 truncate">{asset.name}</p>
-                            {asset.ticker && (
-                              <span className="text-xs text-zinc-600 uppercase">
-                                {asset.ticker}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                            <span>{formatAssetType(asset.type)}</span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p className="text-zinc-300 text-sm">
-                            {formatCurrency(asset.invested, currency)}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )}
+</section>
         </div>
       </main>
 
