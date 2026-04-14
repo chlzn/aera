@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -119,6 +118,7 @@ export default function Spending() {
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -318,17 +318,23 @@ export default function Spending() {
           </header>
 
           <div className="mb-6">
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-            >
-              {availablePeriods.map((period) => (
-                <option key={period} value={period}>
-                  {formatPeriodLabel(period)}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="w-full appearance-none bg-zinc-900/60 border border-white/10 rounded-[22px] px-4 py-4 pr-10 outline-none transition-all duration-200 ease-out hover:bg-zinc-900/80 active:scale-[0.99]"
+              >
+                {availablePeriods.map((period) => (
+                  <option key={period} value={period}>
+                    {formatPeriodLabel(period)}
+                  </option>
+                ))}
+              </select>
+
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                ⌄
+              </span>
+            </div>
           </div>
 
           <section className="grid md:grid-cols-3 gap-4 mb-6">
@@ -392,76 +398,101 @@ export default function Spending() {
           </section>
 
           <section className="mb-24">
-            <div className="mb-4">
-              <p className="text-zinc-500 text-sm mb-4">Transaction history</p>
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between mb-4 text-left"
+            >
+              <p className="text-white text-sm font-medium">Transaction history</p>
+              <span className="text-zinc-400 text-lg">
+                {isHistoryOpen ? "⌃" : "⌄"}
+              </span>
+            </button>
 
-              <div className="mb-4">
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
-                  className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                >
-                  <option value="all">All transactions</option>
-                  <option value="income">Income</option>
-                  <option value="expense">Expenses</option>
-                </select>
-              </div>
-
-              <input
-                placeholder="Search transactions"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-              />
-            </div>
-
-            {filteredEntries.length === 0 ? (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                <p className="text-zinc-300 text-sm">
-                  No transactions in this period.
-                </p>
-                <p className="text-zinc-600 text-sm mt-1">
-                  Select another month or add a new transaction.
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                {filteredEntries.map((entry, index) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => openEditModal(entry)}
-                    className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                      index !== filteredEntries.length - 1
-                        ? "border-b border-white/5"
-                        : ""
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-zinc-200 truncate">
-                        {entry.description}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                        <span>{formatCategory(entry.category)}</span>
-                        <span>•</span>
-                        <span>{formatDate(entry.date)}</span>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`shrink-0 font-medium text-sm ${
-                        entry.type === "income"
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {entry.type === "income" ? "+" : "-"}
-                      {formatCurrency(entry.amount, currency)}
-                    </span>
-                  </button>
-                ))}
-              </div>
+            {!isHistoryOpen && (
+              <p className="text-zinc-600 text-xs mb-4">
+                {filteredEntries.length} transactions
+              </p>
             )}
+
+            <div
+              className={`transition-[max-height,opacity] duration-200 ease-out overflow-hidden ${
+                isHistoryOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-4">
+                    <select
+                      value={filter}
+                      onChange={(e) =>
+                        setFilter(e.target.value as "all" | EntryType)
+                      }
+                      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                    >
+                      <option value="all">All transactions</option>
+                      <option value="income">Income</option>
+                      <option value="expense">Expenses</option>
+                    </select>
+                  </div>
+
+                  <input
+                    placeholder="Search transactions"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                  />
+                </div>
+
+                {filteredEntries.length === 0 ? (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+                    <p className="text-zinc-300 text-sm">
+                      No transactions in this period.
+                    </p>
+                    <p className="text-zinc-600 text-sm mt-1">
+                      Select another month or add a new transaction.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    {filteredEntries.map((entry, index) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => openEditModal(entry)}
+                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                          index !== filteredEntries.length - 1
+                            ? "border-b border-white/5"
+                            : ""
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-zinc-200 truncate">
+                            {entry.description}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+                            <span>{formatCategory(entry.category)}</span>
+                            <span>•</span>
+                            <span>{formatDate(entry.date)}</span>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`shrink-0 font-medium text-sm ${
+                            entry.type === "income"
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {entry.type === "income" ? "+" : "-"}
+                          {formatCurrency(entry.amount, currency)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
         </div>
       </main>
