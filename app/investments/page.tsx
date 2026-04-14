@@ -425,20 +425,22 @@ export default function Investments() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                              <span>{formatAssetType(asset.type)}</span>
-                              <span>•</span>
-                              <span>Invested {formatCurrency(asset.invested, currency)}</span>
-                              <span>•</span>
-                              <span
-                                className={
-                                  pct >= 0 ? "text-green-500" : "text-red-500"
-                                }
-                              >
-                                {pct >= 0 ? "+" : ""}
-                                {pct.toFixed(1)}%
-                              </span>
-                            </div>
+                            <div className="mt-1">
+  <div className="flex items-center gap-2 text-xs text-zinc-600 flex-wrap">
+    <span>{formatAssetType(asset.type)}</span>
+    <span>•</span>
+    <span>Invested {formatCurrency(asset.invested, currency)}</span>
+  </div>
+
+  <p
+    className={`text-[11px] mt-1 ${
+      pct >= 0 ? "text-green-500" : "text-red-500"
+    }`}
+  >
+    {pct >= 0 ? "+" : ""}
+    {pct.toFixed(1)}%
+  </p>
+</div>
                           </div>
 
                           <div className="text-right shrink-0">
