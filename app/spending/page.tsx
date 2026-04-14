@@ -316,31 +316,44 @@ const expenses = periodEntries
             <p className="text-zinc-500 mt-2">Track your cash flow clearly.</p>
           </header>
 
+        <div className="mb-3">
+            <p className="text-sm text-zinc-500">
+              {formatPeriodLabel(selectedPeriod)}
+          </p>
+        </div>
+
           <section className="grid md:grid-cols-3 gap-4 mb-5">
-            <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-              <p className="text-zinc-500 text-sm mb-2">Income</p>
-              <p className="text-2xl font-semibold">
-                {formatCurrency(income, currency)}
-              </p>
-              <p className="text-xs text-zinc-600 mt-2">This month</p>
-            </div>
+  <div>
+    <p className="text-white text-sm font-medium mb-2">Income</p>
+    <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+      <p className="text-2xl font-semibold">
+        {formatCurrency(income, currency)}
+      </p>
+    </div>
+  </div>
 
-            <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-              <p className="text-zinc-500 text-sm mb-2">Expenses</p>
-              <p className="text-2xl font-semibold">
-                {formatCurrency(expenses, currency)}
-              </p>
-              <p className="text-xs text-zinc-600 mt-2">This month</p>
-            </div>
+  <div>
+    <p className="text-white text-sm font-medium mb-2">Expenses</p>
+    <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+      <p className="text-2xl font-semibold">
+        {formatCurrency(expenses, currency)}
+      </p>
+    </div>
+  </div>
 
-            <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-              <p className="text-zinc-500 text-sm mb-2">Net</p>
-              <p className="text-2xl font-semibold">
-                {formatCurrency(net, currency)}
-              </p>
-              <p className="text-xs text-zinc-600 mt-2">This month</p>
-            </div>
-          </section>
+  <div>
+    <p className="text-white text-sm font-medium mb-2">Net</p>
+    <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+      <p
+        className={`text-2xl font-semibold ${
+          net >= 0 ? "text-green-500" : "text-red-500"
+        }`}
+      >
+        {formatCurrency(net, currency)}
+      </p>
+    </div>
+  </div>
+</section>
 
           <section className="mb-8">
             <div className="rounded-[24px] bg-zinc-900/35 border border-white/5 px-5 py-4">
