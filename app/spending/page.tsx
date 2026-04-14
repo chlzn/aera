@@ -5,8 +5,8 @@ import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
+  getAvailablePeriodsFromCurrentYear,
   getCurrentPeriodKey,
-  getPeriodKey,
   isSamePeriod,
 } from "@/lib/period"
 
@@ -152,20 +152,8 @@ export default function Spending() {
   }, [type])
 
   const availablePeriods = useMemo(() => {
-  const periods = entries
-    .map((entry) => getPeriodKey(entry.date))
-    .filter(Boolean) as string[]
-
-  return Array.from(new Set(periods)).sort().reverse()
-}, [entries])
-
-useEffect(() => {
-  if (availablePeriods.length === 0) return
-
-  if (!availablePeriods.includes(selectedPeriod)) {
-    setSelectedPeriod(availablePeriods[0])
-  }
-}, [availablePeriods, selectedPeriod])
+  return getAvailablePeriodsFromCurrentYear()
+}, [])
 
 const periodEntries = useMemo(() => {
   return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
@@ -387,62 +375,30 @@ const expenses = periodEntries
             <div className="mb-4">
               <p className="text-zinc-500 text-sm mb-4">Transaction history</p>
 
-              <div className="mb-4">
-  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              
+              <div className="grid md:grid-cols-2 gap-3 mb-4">
+  <select
+    value={selectedPeriod}
+    onChange={(e) => setSelectedPeriod(e.target.value)}
+    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+  >
     {availablePeriods.map((period) => (
-      <button
-        key={period}
-        type="button"
-        onClick={() => setSelectedPeriod(period)}
-        className={`shrink-0 px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
-          selectedPeriod === period
-            ? "bg-[var(--accent)] text-black"
-            : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
-        }`}
-      >
+      <option key={period} value={period}>
         {formatPeriodLabel(period)}
-      </button>
+      </option>
     ))}
-  </div>
+  </select>
+
+  <select
+    value={filter}
+    onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+  >
+    <option value="all">All transactions</option>
+    <option value="income">Income</option>
+    <option value="expense">Expenses</option>
+  </select>
 </div>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setFilter("all")}
-                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
-                    filter === "all"
-                      ? "bg-[var(--accent)] text-black"
-                      : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
-                  }`}
-                >
-                  All
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFilter("income")}
-                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
-                    filter === "income"
-                      ? "bg-[var(--accent)] text-black"
-                      : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
-                  }`}
-                >
-                  Income
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFilter("expense")}
-                  className={`px-4 py-2.5 rounded-full text-sm cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
-                    filter === "expense"
-                      ? "bg-[var(--accent)] text-black"
-                      : "bg-zinc-900/55 border border-white/5 text-zinc-300 hover:text-white"
-                  }`}
-                >
-                  Expenses
-                </button>
-              </div>
 
               <input
                 placeholder="Search transactions"
@@ -456,7 +412,7 @@ const expenses = periodEntries
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
                 <p className="text-zinc-300 text-sm">No transactions in this period.</p>
                 <p className="text-zinc-600 text-sm mt-1">
-                Select another month or add a new transaction.
+                  Select another month or add a new transaction.
                 </p>
               </div>
             ) : (

@@ -26,3 +26,18 @@ export function getCurrentPeriodKey() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
+export function getAvailablePeriodsFromCurrentYear() {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth()
+
+  const periods: string[] = []
+
+  for (let month = currentMonth; month >= 0; month--) {
+    periods.push(
+      `${currentYear}-${String(month + 1).padStart(2, "0")}`
+    )
+  }
+
+  return periods
+}
