@@ -1,9 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { useCurrency } from "@/context/currency-context"
-import { isCurrentMonth } from "@/lib/date"
+import {
+  formatPeriodLabel,
+  getAvailablePeriodsFromCurrentYear,
+  getCurrentPeriodKey,
+  isSamePeriod,
+} from "@/lib/period"
 
 type AssetType =
   | "crypto"
@@ -78,6 +82,7 @@ export default function Investments() {
 
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | AssetType>("all")
+  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState("")
@@ -106,6 +111,10 @@ export default function Investments() {
     }
   }, [assets, assetsHydrated])
 
+  const availablePeriods = useMemo(() => {
+    return getAvailablePeriodsFromCurrentYear()
+  }, [])
+
   const totals = useMemo(() => {
     const investedTotal = assets.reduce((acc, asset) => acc + asset.invested, 0)
     const currentTotal = assets.reduce(
@@ -123,25 +132,24 @@ export default function Investments() {
     }
   }, [assets])
 
-  const monthlyAssets = useMemo(
-  () => assets.filter((asset) => isCurrentMonth(asset.createdAt)),
-  [assets]
-)
+  const periodAssets = useMemo(() => {
+    return assets.filter((asset) => isSamePeriod(asset.createdAt, selectedPeriod))
+  }, [assets, selectedPeriod])
 
-const monthlyInvested = monthlyAssets.reduce(
-  (acc, asset) => acc + asset.invested,
-  0
-)
+  const periodInvested = periodAssets.reduce(
+    (acc, asset) => acc + asset.invested,
+    0
+  )
 
-const monthlyCurrent = monthlyAssets.reduce(
-  (acc, asset) => acc + asset.currentValue,
-  0
-)
+  const periodCurrent = periodAssets.reduce(
+    (acc, asset) => acc + asset.currentValue,
+    0
+  )
 
-const monthlyReturn = monthlyCurrent - monthlyInvested
+  const periodReturn = periodCurrent - periodInvested
 
   const filteredAssets = useMemo(() => {
-    return assets.filter((asset) => {
+    return periodAssets.filter((asset) => {
       const matchesFilter = filter === "all" ? true : asset.type === filter
       const query = search.toLowerCase()
 
@@ -152,23 +160,23 @@ const monthlyReturn = monthlyCurrent - monthlyInvested
 
       return matchesFilter && matchesSearch
     })
-  }, [assets, filter, search])
+  }, [periodAssets, filter, search])
 
   const portfolioInsight = useMemo(() => {
-    if (monthlyAssets.length === 0) {
-      return "No data yet — add your first asset to start tracking performance."
+    if (periodAssets.length === 0) {
+      return "No data yet — add your first asset to start tracking this period."
     }
 
-    if (totals.profit > 0) {
-      return "Your portfolio is above your invested capital."
+    if (periodReturn > 0) {
+      return "Your positions from this period are currently above cost."
     }
 
-    if (totals.profit < 0) {
-      return "Your portfolio is currently below your invested capital."
+    if (periodReturn < 0) {
+      return "Your positions from this period are currently below cost."
     }
 
-    return "Your portfolio is currently flat."
-  }, [monthlyAssets.length, totals.profit])
+    return "Your positions from this period are currently flat."
+  }, [periodAssets.length, periodReturn])
 
   const resetForm = () => {
     setName("")
@@ -274,91 +282,114 @@ const monthlyReturn = monthlyCurrent - monthlyInvested
   const fieldClass =
     "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
 
-  const profitTone =
-    totals.profit > 0
-      ? "text-green-500"
-      : totals.profit < 0
-      ? "text-red-500"
-      : "text-zinc-300"
-
   return (
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-9">
+          <header className="mb-6">
             <h1 className="text-3xl font-semibold tracking-tight">Investments</h1>
             <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
           </header>
 
-          <section className="grid md:grid-cols-3 gap-4 mb-8">
-  {/* Invested */}
-  <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-    <p className="text-zinc-500 text-sm mb-2">Invested</p>
-    <p className="text-2xl font-semibold">
-      {formatCurrency(totals.investedTotal, currency)}
-    </p>
-    <p className="text-xs text-zinc-600 mt-2">All time</p>
-  </div>
-
-  {/* Current Value */}
-  <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-    <p className="text-zinc-500 text-sm mb-2">Current Value</p>
-    <p className="text-2xl font-semibold">
-      {formatCurrency(totals.currentTotal, currency)}
-    </p>
-    <p className="text-xs text-zinc-600 mt-2">Portfolio</p>
-  </div>
-
-  {/* Profit */}
-  <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-    <p className="text-zinc-500 text-sm mb-2">Profit</p>
-    
-    <p className="text-2xl font-semibold text-white">
-      {formatCurrency(totals.profit, currency)}
-      <span
-        className={`ml-2 text-sm ${
-          totals.profit >= 0 ? "text-green-500" : "text-red-500"
-        }`}
-      >
-        ({totals.profitPct.toFixed(1)}%)
-      </span>
-    </p>
-
-    <p className="text-xs text-zinc-600 mt-2">All time</p>
-  </div>
-</section>
-
-<section className="grid md:grid-cols-3 gap-4 mb-8">
-  <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-    <p className="text-zinc-500 text-sm mb-2">Invested (This Month)</p>
-    <p className="text-xl font-semibold">
-      {formatCurrency(monthlyInvested, currency)}
-    </p>
-  </div>
-
-  <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-    <p className="text-zinc-500 text-sm mb-2">Current (This Month)</p>
-    <p className="text-xl font-semibold">
-      {formatCurrency(monthlyCurrent, currency)}
-    </p>
-  </div>
-
-  <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-    <p className="text-zinc-500 text-sm mb-2">Return (This Month)</p>
-    <p
-      className={`text-xl font-semibold ${
-        monthlyReturn >= 0 ? "text-green-500" : "text-red-500"
-      }`}
-    >
-      {formatCurrency(monthlyReturn, currency)}
-    </p>
-  </div>
-</section>
+          <div className="mb-6">
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+            >
+              {availablePeriods.map((period) => (
+                <option key={period} value={period}>
+                  {formatPeriodLabel(period)}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <section className="mb-8">
-            <div className="rounded-[24px] bg-zinc-900/35 border border-white/5 px-5 py-4">
-              <p className="text-sm text-zinc-300">{portfolioInsight}</p>
+            <p className="text-zinc-500 text-sm mb-4">Total</p>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-white text-sm font-medium mb-2">Invested</p>
+                <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                  <p className="text-2xl font-semibold">
+                    {formatCurrency(totals.investedTotal, currency)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-white text-sm font-medium mb-2">
+                  Current Value
+                </p>
+                <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                  <p className="text-2xl font-semibold">
+                    {formatCurrency(totals.currentTotal, currency)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-white text-sm font-medium mb-2">Profit</p>
+                <div className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                  <p className="text-2xl font-semibold text-white">
+                    {formatCurrency(totals.profit, currency)}
+                    <span
+                      className={`ml-2 text-sm ${
+                        totals.profit >= 0 ? "text-green-500" : "text-red-500"
+                      }`}
+                    >
+                      ({totals.profitPct.toFixed(1)}%)
+                    </span>
+                  </p>
+                </div>
+              </div>
             </div>
+          </section>
+
+          <section className="mb-6">
+            <p className="text-zinc-500 text-sm mb-4">
+              {formatPeriodLabel(selectedPeriod)}
+            </p>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-white text-sm font-medium mb-2">Invested</p>
+                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                  <p className="text-xl font-semibold">
+                    {formatCurrency(periodInvested, currency)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-white text-sm font-medium mb-2">
+                  Current Value
+                </p>
+                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                  <p className="text-xl font-semibold">
+                    {formatCurrency(periodCurrent, currency)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-white text-sm font-medium mb-2">Return</p>
+                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                  <p
+                    className={`text-xl font-semibold ${
+                      periodReturn >= 0 ? "text-green-500" : "text-red-500"
+                    }`}
+                  >
+                    {formatCurrency(periodReturn, currency)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="mb-6">
+            <p className="text-sm text-zinc-400">{portfolioInsight}</p>
           </section>
 
           <section className="mb-8">
@@ -381,9 +412,9 @@ const monthlyReturn = monthlyCurrent - monthlyInvested
 
           <section className="mb-24">
             <div className="mb-4">
-              <p className="text-zinc-500 text-sm mb-4">Portfolio</p>
+              <p className="text-zinc-500 text-sm mb-4">Portfolio history</p>
 
-              <div className="flex flex-col gap-4 mb-4">
+              <div className="mb-4">
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value as "all" | AssetType)}
@@ -396,21 +427,21 @@ const monthlyReturn = monthlyCurrent - monthlyInvested
                     </option>
                   ))}
                 </select>
-
-                <input
-                  placeholder="Search assets"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                />
               </div>
+
+              <input
+                placeholder="Search assets"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+              />
             </div>
 
             {filteredAssets.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                <p className="text-zinc-300 text-sm">No investments yet.</p>
+                <p className="text-zinc-300 text-sm">No investments in this period.</p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Start by adding your first asset.
+                  Select another month or add a new asset.
                 </p>
               </div>
             ) : (
@@ -473,20 +504,18 @@ const monthlyReturn = monthlyCurrent - monthlyInvested
             )}
           </section>
         </div>
-
-        
       </main>
 
       {isModalOpen && (
         <div
-  className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
-  onClick={closeModal}
->
+          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={closeModal}
+        >
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
-  className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
-  onClick={(e) => e.stopPropagation()}
->
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-zinc-400 text-sm">
                   {editingId ? "Edit Asset" : "New Asset"}
