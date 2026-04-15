@@ -119,7 +119,7 @@ export default function Settings() {
             <div className={sectionClass}>
               <div className="text-zinc-500 text-sm">
                 Coming soon
-Bank sync, multiple accounts, cloud backup, and premium insights.
+                Bank sync, multiple accounts, cloud backup, and premium insights.
               </div>
             </div>
           </section>
