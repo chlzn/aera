@@ -1,201 +1,178 @@
 "use client"
 
-import { ChangeEvent, useRef, useState } from "react"
-import Link from "next/link"
+import { useState } from "react"
 import { useCurrency } from "@/context/currency-context"
-
-type AppData = {
-  currency: string
-  entries: unknown[]
-  investments: unknown[]
-}
-
-const STORAGE_KEYS = {
-  currency: "currency",
-  entries: "entries",
-  investments: "investments",
-} as const
 
 export default function Settings() {
   const { currency, setCurrency } = useCurrency()
-
-  const [confirmReset, setConfirmReset] = useState(false)
-  const [message, setMessage] = useState("")
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  const fieldClass =
-    "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
-
-  const handleCurrencyChange = (value: string) => {
-    setCurrency(value)
-    setMessage("Currency updated.")
-  }
-
-  const handleReset = () => {
-    if (!confirmReset) {
-      setConfirmReset(true)
-      setMessage("Press again to confirm.")
-      return
-    }
-
-    try {
-      localStorage.removeItem(STORAGE_KEYS.entries)
-      localStorage.removeItem(STORAGE_KEYS.investments)
-      localStorage.removeItem(STORAGE_KEYS.currency)
-
-      setCurrency("USD")
-      setConfirmReset(false)
-      setMessage("All data has been reset.")
-    } catch {
-      setMessage("Something went wrong while resetting your data.")
-    }
-  }
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false)
 
   const handleExport = () => {
-    try {
-      const data: AppData = {
-        currency: localStorage.getItem(STORAGE_KEYS.currency) || "USD",
-        entries: JSON.parse(localStorage.getItem(STORAGE_KEYS.entries) || "[]"),
-        investments: JSON.parse(
-          localStorage.getItem(STORAGE_KEYS.investments) || "[]"
-        ),
-      }
-
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
-      })
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "aera-backup.json"
-      a.click()
-      URL.revokeObjectURL(url)
-
-      setMessage("Backup exported successfully.")
-    } catch {
-      setMessage("Could not export your data.")
+    const data = {
+      entries: localStorage.getItem("entries"),
+      investments: localStorage.getItem("investments"),
     }
+
+    const blob = new Blob([JSON.stringify(data)], {
+      type: "application/json",
+    })
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "aera-data.json"
+    a.click()
   }
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleImport = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
-
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(reader.result as string) as Partial<AppData>
+        const data = JSON.parse(reader.result as string)
 
-        localStorage.setItem(STORAGE_KEYS.currency, parsed.currency || "USD")
-        localStorage.setItem(
-          STORAGE_KEYS.entries,
-          JSON.stringify(parsed.entries || [])
-        )
-        localStorage.setItem(
-          STORAGE_KEYS.investments,
-          JSON.stringify(parsed.investments || [])
-        )
+        if (data.entries) {
+          localStorage.setItem("entries", data.entries)
+        }
 
-        setCurrency(parsed.currency || "USD")
-        setConfirmReset(false)
-        setMessage("Backup imported successfully.")
+        if (data.investments) {
+          localStorage.setItem("investments", data.investments)
+        }
+
+        window.location.reload()
       } catch {
-        setMessage("Invalid backup file.")
+        alert("Invalid file")
       }
     }
 
     reader.readAsText(file)
-    event.target.value = ""
   }
 
+  const handleReset = () => {
+    localStorage.removeItem("entries")
+    localStorage.removeItem("investments")
+    window.location.reload()
+  }
+
+  const sectionClass =
+    "rounded-[26px] bg-zinc-900/45 border border-white/5 p-5 space-y-4"
+
+  const itemClass =
+    "w-full flex items-center justify-between px-4 py-3 rounded-[18px] bg-zinc-800/40 border border-white/5 text-sm transition hover:bg-zinc-800/60"
+
   return (
-    <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
-      <div className="max-w-3xl mx-auto">
-        <header className="mb-9">
-          <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-zinc-500 mt-2">Customize your experience.</p>
-        </header>
+    <>
+      <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
+        <div className="max-w-4xl mx-auto">
+          <header className="mb-8">
+            <h1 className="text-3xl font-semibold">Settings</h1>
+          </header>
 
-        <section className="rounded-[26px] bg-zinc-900/55 border border-white/5 p-6 shadow-[0_8px_24px_rgba(0,0,0,0.18)] mb-6">
-          <p className="text-zinc-500 text-sm mb-4">Currency</p>
+          {/* Preferences */}
+          <section className="mb-6">
+            <p className="text-white text-sm mb-3">Preferences</p>
 
-          <select
-            value={currency}
-            onChange={(e) => handleCurrencyChange(e.target.value)}
-            className={fieldClass}
-          >
-            <option value="USD">USD ($)</option>
-            <option value="BRL">BRL (R$)</option>
-            <option value="EUR">EUR (€)</option>
-          </select>
-        </section>
+            <div className={sectionClass}>
+              <div className={itemClass}>
+                <span>Currency</span>
 
-        <section className="rounded-[26px] bg-zinc-900/45 border border-white/5 p-6 shadow-[0_8px_24px_rgba(0,0,0,0.18)] mb-6">
-          <p className="text-zinc-500 text-sm mb-4">Backup</p>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="bg-transparent text-zinc-400 outline-none"
+                >
+                  <option value="USD">USD</option>
+                  <option value="BRL">BRL</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+            </div>
+          </section>
 
-          <div className="grid md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={handleExport}
-              className="rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-95 cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
-            >
-              Export data
-            </button>
+          {/* Data */}
+          <section className="mb-6">
+            <p className="text-white text-sm mb-3">Data</p>
 
-            <button
-              type="button"
-              onClick={handleImportClick}
-              className="rounded-full bg-zinc-800/85 border border-white/5 text-white h-[50px] font-medium transition-all duration-200 ease-out hover:bg-zinc-700/85 active:scale-95 cursor-pointer touch-manipulation"
-            >
-              Import data
-            </button>
-          </div>
+            <div className={sectionClass}>
+              <button onClick={handleExport} className={itemClass}>
+                Export your data
+              </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            onChange={handleImport}
-            className="hidden"
-          />
-        </section>
+              <label className={itemClass}>
+                Import your data
+                <input
+                  type="file"
+                  accept="application/json"
+                  onChange={handleImport}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </section>
 
-        <section className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-6 mb-6">
-          <p className="text-zinc-500 text-sm mb-2">Sync & Premium</p>
-          <p className="text-sm text-zinc-600">
-            Bank sync, multiple accounts, cloud backup, and premium insights
-            will be available in a future version.
-          </p>
-        </section>
+          {/* Sync & Premium */}
+          <section className="mb-6">
+            <p className="text-white text-sm mb-3">Sync & Premium</p>
 
-        <section className="rounded-[26px] bg-zinc-900/45 border border-white/5 p-6 mb-3">
-          <p className="text-zinc-500 text-sm mb-4">Reset data</p>
+            <div className={sectionClass}>
+              <div className="text-zinc-500 text-sm">
+                Coming in a future version
+              </div>
+            </div>
+          </section>
 
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`w-full rounded-full h-[50px] font-medium transition-all duration-200 ease-out active:scale-95 cursor-pointer touch-manipulation ${
-              confirmReset
-                ? "bg-red-500 text-white hover:opacity-90"
-                : "bg-zinc-800/85 border border-white/5 text-white hover:bg-zinc-700/85"
-            }`}
-          >
-            {confirmReset ? "Confirm reset all data" : "Reset all data"}
-          </button>
-        </section>
+          {/* Danger Zone */}
+          <section className="mb-24">
+            <p className="text-white text-sm mb-3">Danger zone</p>
 
-        <div className="min-h-[24px] mb-24 px-1">
-          {message && <p className="text-sm text-zinc-500">{message}</p>}
+            <div className={sectionClass}>
+              <button
+                onClick={() => setIsResetModalOpen(true)}
+                className="w-full text-left px-4 py-3 rounded-[18px] border border-red-500/20 text-red-400 hover:bg-red-500/5 transition text-sm"
+              >
+                Delete all data
+              </button>
+            </div>
+          </section>
         </div>
-      </div>
+      </main>
 
-      
-    </main>
+      {/* MODAL */}
+      {isResetModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-5"
+          onClick={() => setIsResetModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-[26px] bg-zinc-900 border border-white/5 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white text-sm mb-4">
+              This will permanently delete all your data.
+              <br />
+              This action cannot be undone.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsResetModalOpen(false)}
+                className="flex-1 rounded-full bg-zinc-800 text-zinc-300 py-3 text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleReset}
+                className="flex-1 rounded-full bg-red-500 text-white py-3 text-sm"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
