@@ -114,7 +114,7 @@ export default function Settings() {
 
           {/* Coming soon */}
           <section className="mb-6">
-            <p className="text-white text-sm mb-3">Sync & Premium</p>
+            <p className="text-white text-sm mb-3">Coming soon</p>
 
             <div className={sectionClass}>
               <div className="text-zinc-500 text-sm">
