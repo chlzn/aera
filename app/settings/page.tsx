@@ -112,13 +112,12 @@ export default function Settings() {
             </div>
           </section>
 
-          {/* Sync & Premium */}
+          {/* Coming soon */}
           <section className="mb-6">
             <p className="text-white text-sm mb-3">Sync & Premium</p>
 
             <div className={sectionClass}>
               <div className="text-zinc-500 text-sm">
-                Coming soon
                 Bank sync, multiple accounts, cloud backup, and premium insights.
               </div>
             </div>
