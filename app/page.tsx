@@ -100,50 +100,66 @@ export default function Home() {
 
   const hasAnyData = entries.length > 0 || investments.length > 0
 
-  const balanceStatus = useMemo(() => {
-    if (!hasAnyData) {
+  const portfolioStatus = useMemo(() => {
+    if (!hasAnyData || (cash === 0 && investmentsTotal === 0)) {
       return {
-        label: "No data yet",
+        label: "No assets",
         tone: "neutral" as const,
-        message: "Start tracking to see your financial picture clearly.",
       }
     }
 
-    if (monthlyEntries.length === 0) {
+    if (investmentsTotal > cash) {
       return {
-        label: "No activity this month",
+        label: "Asset heavy",
         tone: "neutral" as const,
-        message: "Add a transaction to keep this month updated.",
       }
     }
 
-    if (netFlow > 0) {
+    if (cash > investmentsTotal) {
       return {
-        label: "Positive month",
-        tone: "positive" as const,
-        message: "Saving money this month.",
-      }
-    }
-
-    if (netFlow < 0) {
-      return {
-        label: "Spending ahead",
-        tone: "negative" as const,
-        message: "Expenses are higher than income this month.",
+        label: "Cash heavy",
+        tone: "neutral" as const,
       }
     }
 
     return {
-      label: "Balanced month",
+      label: "Balanced",
       tone: "neutral" as const,
-      message: "Income and expenses are currently aligned.",
     }
-  }, [hasAnyData, monthlyEntries.length, netFlow])
+  }, [hasAnyData, cash, investmentsTotal])
+
+  const monthlyInsight = useMemo(() => {
+    if (monthlyEntries.length === 0) {
+      return "No activity this month yet."
+    }
+
+    if (monthlyIncome <= 0 && monthlyExpenses > 0) {
+      return "Spending without income this month."
+    }
+
+    if (monthlyIncome <= 0 && monthlyExpenses <= 0) {
+      return "No monthly activity yet."
+    }
+
+    const savingsRate = monthlyIncome > 0 ? (netFlow / monthlyIncome) * 100 : 0
+
+    if (savingsRate >= 50) {
+      return "You’re saving most of your income."
+    }
+
+    if (savingsRate >= 20) {
+      return "You’re saving part of your income."
+    }
+
+    if (savingsRate >= 0) {
+      return "Spending is high this month."
+    }
+
+    return "You’re spending more than you earn."
+  }, [monthlyEntries.length, monthlyIncome, monthlyExpenses, netFlow])
 
   const statusPillClass =
-    balanceStatus.tone === "positive"
-      ? "bg-[var(--accent)]/16 text-[var(--accent)] border border-[var(--accent)]/20"
-      : balanceStatus.tone === "negative"
+    portfolioStatus.tone === "neutral"
       ? "bg-white/5 text-zinc-300 border border-white/6"
       : "bg-white/5 text-zinc-300 border border-white/6"
 
@@ -164,7 +180,8 @@ export default function Home() {
                     Start tracking your money
                   </p>
                   <p className="text-zinc-500 text-sm mt-2 max-w-md">
-                    Add your first transaction to begin building a clear financial view.
+                    Add your first transaction to begin building a clear financial
+                    view.
                   </p>
                 </div>
 
@@ -179,7 +196,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="mb-8">
+        <section className="mb-10">
           <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
@@ -209,66 +226,56 @@ export default function Home() {
               <span
                 className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${statusPillClass}`}
               >
-                {balanceStatus.label}
+                {portfolioStatus.label}
               </span>
             </div>
           </div>
         </section>
 
-        <section className="mb-6">
-          <p className="text-sm text-zinc-400">{balanceStatus.message}</p>
-        </section>
-
         <section className="mb-24">
-          <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-white text-sm font-medium">This month</p>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Current monthly snapshot
-                </p>
-              </div>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <p className="text-white text-sm font-medium">This month</p>
+            <span className="text-xs text-zinc-600">
+              {new Intl.DateTimeFormat("en-US", {
+                month: "short",
+                year: "numeric",
+              }).format(new Date())}
+            </span>
+          </div>
 
-              <span className="text-xs text-zinc-600">
-                {new Intl.DateTimeFormat("en-US", {
-                  month: "short",
-                  year: "numeric",
-                }).format(new Date())}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500 text-sm">Income</span>
+              <span className="text-white text-sm font-medium">
+                {formatCurrency(monthlyIncome, currency)}
               </span>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-400 text-sm">Income</span>
-                <span className="text-white text-sm font-medium">
-                  {formatCurrency(monthlyIncome, currency)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-400 text-sm">Expenses</span>
-                <span className="text-white text-sm font-medium">
-                  {formatCurrency(monthlyExpenses, currency)}
-                </span>
-              </div>
-
-              <div className="h-px bg-white/5" />
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-300 text-sm font-medium">Net</span>
-                <span
-                  className={`text-sm font-medium ${
-                    netFlow > 0
-                      ? "text-green-500"
-                      : netFlow < 0
-                      ? "text-red-500"
-                      : "text-zinc-300"
-                  }`}
-                >
-                  {formatCurrency(netFlow, currency)}
-                </span>
-              </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500 text-sm">Expenses</span>
+              <span className="text-white text-sm font-medium">
+                {formatCurrency(monthlyExpenses, currency)}
+              </span>
             </div>
+
+            <div className="h-px bg-white/5" />
+
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-300 text-sm font-medium">Net</span>
+              <span
+                className={`text-sm font-medium ${
+                  netFlow > 0
+                    ? "text-green-500"
+                    : netFlow < 0
+                    ? "text-red-500"
+                    : "text-zinc-300"
+                }`}
+              >
+                {formatCurrency(netFlow, currency)}
+              </span>
+            </div>
+
+            <p className="text-xs text-zinc-500 pt-1">{monthlyInsight}</p>
           </div>
         </section>
       </div>
