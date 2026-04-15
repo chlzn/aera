@@ -47,6 +47,7 @@ export default function Home() {
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [investments, setInvestments] = useState<Investment[]>([])
+  const [isMonthOpen, setIsMonthOpen] = useState(true)
 
   useEffect(() => {
     try {
@@ -102,30 +103,18 @@ export default function Home() {
 
   const portfolioStatus = useMemo(() => {
     if (!hasAnyData || (cash === 0 && investmentsTotal === 0)) {
-      return {
-        label: "No assets",
-        tone: "neutral" as const,
-      }
+      return { label: "No assets" }
     }
 
     if (investmentsTotal > cash) {
-      return {
-        label: "Asset heavy",
-        tone: "neutral" as const,
-      }
+      return { label: "Asset heavy" }
     }
 
     if (cash > investmentsTotal) {
-      return {
-        label: "Cash heavy",
-        tone: "neutral" as const,
-      }
+      return { label: "Cash heavy" }
     }
 
-    return {
-      label: "Balanced",
-      tone: "neutral" as const,
-    }
+    return { label: "Balanced" }
   }, [hasAnyData, cash, investmentsTotal])
 
   const monthlyInsight = useMemo(() => {
@@ -157,11 +146,6 @@ export default function Home() {
 
     return "You’re spending more than you earn."
   }, [monthlyEntries.length, monthlyIncome, monthlyExpenses, netFlow])
-
-  const statusPillClass =
-    portfolioStatus.tone === "neutral"
-      ? "bg-white/5 text-zinc-300 border border-white/6"
-      : "bg-white/5 text-zinc-300 border border-white/6"
 
   return (
     <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
@@ -198,84 +182,98 @@ export default function Home() {
 
         <section className="mb-10">
           <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div>
-                <p className="text-zinc-500 text-sm mb-3">Net Worth</p>
+            <div>
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <p className="text-zinc-500 text-sm">Net Worth</p>
 
-                <h2 className="text-5xl font-semibold tracking-tight">
-                  {formatCurrency(netWorth, currency)}
-                </h2>
-
-                <div className="mt-5 flex gap-6 flex-wrap text-sm">
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Cash</span>
-                    <span className="text-white font-medium">
-                      {formatCurrency(cash, currency)}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Investments</span>
-                    <span className="text-white font-medium">
-                      {formatCurrency(investmentsTotal, currency)}
-                    </span>
-                  </div>
-                </div>
+                <span className="inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium bg-[var(--accent)]/16 text-[var(--accent)] border border-[var(--accent)]/20">
+                  {portfolioStatus.label}
+                </span>
               </div>
 
-              <span
-                className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${statusPillClass}`}
-              >
-                {portfolioStatus.label}
-              </span>
+              <h2 className="text-5xl font-semibold tracking-tight">
+                {formatCurrency(netWorth, currency)}
+              </h2>
+
+              <div className="mt-5 flex gap-6 flex-wrap text-sm">
+                <div className="flex flex-col">
+                  <span className="text-zinc-500">Cash</span>
+                  <span className="text-white font-medium">
+                    {formatCurrency(cash, currency)}
+                  </span>
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-zinc-500">Investments</span>
+                  <span className="text-white font-medium">
+                    {formatCurrency(investmentsTotal, currency)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         <section className="mb-24">
-          <div className="mb-4 flex items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={() => setIsMonthOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between text-left mb-4"
+          >
             <p className="text-white text-sm font-medium">This month</p>
-            <span className="text-xs text-zinc-600">
-              {new Intl.DateTimeFormat("en-US", {
-                month: "short",
-                year: "numeric",
-              }).format(new Date())}
-            </span>
-          </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-zinc-500 text-sm">Income</span>
-              <span className="text-white text-sm font-medium">
-                {formatCurrency(monthlyIncome, currency)}
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-zinc-600">
+                {new Intl.DateTimeFormat("en-US", {
+                  month: "short",
+                  year: "numeric",
+                }).format(new Date())}
+              </span>
+              <span className="text-[var(--accent)] text-lg">
+                {isMonthOpen ? "⌃" : "⌄"}
               </span>
             </div>
+          </button>
 
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-zinc-500 text-sm">Expenses</span>
-              <span className="text-white text-sm font-medium">
-                {formatCurrency(monthlyExpenses, currency)}
-              </span>
+          <div
+            className={`transition-[max-height,opacity] duration-200 ease-out overflow-hidden ${
+              isMonthOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-500 text-sm">Income</span>
+                <span className="text-white text-sm font-medium">
+                  {formatCurrency(monthlyIncome, currency)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-500 text-sm">Expenses</span>
+                <span className="text-white text-sm font-medium">
+                  {formatCurrency(monthlyExpenses, currency)}
+                </span>
+              </div>
+
+              <div className="h-px bg-white/5" />
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-300 text-sm font-medium">Net</span>
+                <span
+                  className={`text-sm font-medium ${
+                    netFlow > 0
+                      ? "text-green-500"
+                      : netFlow < 0
+                      ? "text-red-500"
+                      : "text-zinc-300"
+                  }`}
+                >
+                  {formatCurrency(netFlow, currency)}
+                </span>
+              </div>
+
+              <p className="text-xs text-zinc-500 pt-1">{monthlyInsight}</p>
             </div>
-
-            <div className="h-px bg-white/5" />
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-zinc-300 text-sm font-medium">Net</span>
-              <span
-                className={`text-sm font-medium ${
-                  netFlow > 0
-                    ? "text-green-500"
-                    : netFlow < 0
-                    ? "text-red-500"
-                    : "text-zinc-300"
-                }`}
-              >
-                {formatCurrency(netFlow, currency)}
-              </span>
-            </div>
-
-            <p className="text-xs text-zinc-500 pt-1">{monthlyInsight}</p>
           </div>
         </section>
       </div>
