@@ -118,11 +118,12 @@ export default function Spending() {
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | EntryType>("all")
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
+  const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>("all")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
   const [error, setError] = useState("")
-
+  
   useEffect(() => {
     try {
       const savedEntries = localStorage.getItem("entries")
@@ -153,6 +154,10 @@ export default function Spending() {
     setCategory(defaultCategory)
   }, [type])
 
+  useEffect(() => {
+  setCategoryFilter("all")
+  }, [filter])
+
   const availablePeriods = useMemo(() => {
     return getAvailablePeriodsFromCurrentYear()
   }, [])
@@ -162,15 +167,17 @@ export default function Spending() {
   }, [entries, selectedPeriod])
 
   const filteredEntries = useMemo(() => {
-    return periodEntries.filter((entry) => {
-      const matchesType = filter === "all" ? true : entry.type === filter
-      const matchesSearch = entry.description
-        .toLowerCase()
-        .includes(search.toLowerCase())
+  return periodEntries.filter((entry) => {
+    const matchesType = filter === "all" ? true : entry.type === filter
+    const matchesCategory =
+      categoryFilter === "all" ? true : entry.category === categoryFilter
+    const matchesSearch = entry.description
+      .toLowerCase()
+      .includes(search.toLowerCase())
 
-      return matchesType && matchesSearch
+      return matchesType && matchesCategory && matchesSearch
     })
-  }, [periodEntries, filter, search])
+  }, [periodEntries, filter, categoryFilter, search])
 
   const income = periodEntries
     .filter((entry) => entry.type === "income")
@@ -184,6 +191,12 @@ export default function Spending() {
 
   const currentCategories =
     type === "income" ? incomeCategories : expenseCategories
+  
+  const availableFilterCategories = useMemo(() => {
+  if (filter === "income") return incomeCategories
+  if (filter === "expense") return expenseCategories
+  return [...incomeCategories, ...expenseCategories]
+}, [filter])  
 
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0) {
@@ -425,27 +438,41 @@ export default function Spending() {
             >
               <div className="space-y-4">
                 <div>
-                  <div className="mb-4">
-                    <select
-                      value={filter}
-                      onChange={(e) =>
-                        setFilter(e.target.value as "all" | EntryType)
-                      }
-                      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                    >
-                      <option value="all">All transactions</option>
-                      <option value="income">Income</option>
-                      <option value="expense">Expenses</option>
-                    </select>
-                  </div>
+                  <div>
+  <div className="grid grid-cols-2 gap-3 mb-4">
+    <select
+      value={filter}
+      onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+    >
+      <option value="all">All types</option>
+      <option value="income">Income</option>
+      <option value="expense">Expenses</option>
+    </select>
 
-                  <input
-                    placeholder="Search transactions"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                  />
-                </div>
+    <select
+      value={categoryFilter}
+      onChange={(e) =>
+        setCategoryFilter(e.target.value as "all" | EntryCategory)
+      }
+      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+    >
+      <option value="all">All categories</option>
+      {availableFilterCategories.map((item) => (
+        <option key={item.value} value={item.value}>
+          {item.label}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <input
+    placeholder="Search transactions"
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+  />
+</div>
 
                 {filteredEntries.length === 0 ? (
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
