@@ -437,91 +437,86 @@ export default function Spending() {
               }`}
             >
               <div className="space-y-4">
-                <div>
-                  <div>
-  <div className="grid grid-cols-2 gap-3 mb-4">
-    <select
-      value={filter}
-      onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
-      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-    >
-      <option value="all">All types</option>
-      <option value="income">Income</option>
-      <option value="expense">Expenses</option>
-    </select>
+  <div>
+    <div className="grid grid-cols-2 gap-3 mb-4">
+      <select
+        value={filter}
+        onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+        className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+      >
+        <option value="all">All types</option>
+        <option value="income">Income</option>
+        <option value="expense">Expenses</option>
+      </select>
 
-    <select
-      value={categoryFilter}
-      onChange={(e) =>
-        setCategoryFilter(e.target.value as "all" | EntryCategory)
-      }
+      <select
+        value={categoryFilter}
+        onChange={(e) =>
+          setCategoryFilter(e.target.value as "all" | EntryCategory)
+        }
+        className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+      >
+        <option value="all">All categories</option>
+        {availableFilterCategories.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <input
+      placeholder="Search transactions"
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
       className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-    >
-      <option value="all">All categories</option>
-      {availableFilterCategories.map((item) => (
-        <option key={item.value} value={item.value}>
-          {item.label}
-        </option>
-      ))}
-    </select>
+    />
   </div>
 
-  <input
-    placeholder="Search transactions"
-    value={search}
-    onChange={(e) => setSearch(e.target.value)}
-    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-  />
+  {filteredEntries.length === 0 ? (
+    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+      <p className="text-zinc-300 text-sm">
+        No transactions in this period.
+      </p>
+      <p className="text-zinc-600 text-sm mt-1">
+        Select another month or add a new transaction.
+      </p>
+    </div>
+  ) : (
+    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+      {filteredEntries.map((entry, index) => (
+        <button
+          key={entry.id}
+          type="button"
+          onClick={() => openEditModal(entry)}
+          className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+            index !== filteredEntries.length - 1
+              ? "border-b border-white/5"
+              : ""
+          }`}
+        >
+          <div className="min-w-0">
+            <p className="text-zinc-200 truncate">{entry.description}</p>
+            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+              <span>{formatCategory(entry.category)}</span>
+              <span>•</span>
+              <span>{formatDate(entry.date)}</span>
+            </div>
+          </div>
+
+          <span
+            className={`shrink-0 font-medium text-sm ${
+              entry.type === "income" ? "text-green-500" : "text-red-500"
+            }`}
+          >
+            {entry.type === "income" ? "+" : "-"}
+            {formatCurrency(entry.amount, currency)}
+          </span>
+        </button>
+      ))}
+    </div>
+  )}
 </div>
-
-                {filteredEntries.length === 0 ? (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                    <p className="text-zinc-300 text-sm">
-                      No transactions in this period.
-                    </p>
-                    <p className="text-zinc-600 text-sm mt-1">
-                      Select another month or add a new transaction.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                    {filteredEntries.map((entry, index) => (
-                      <button
-                        key={entry.id}
-                        type="button"
-                        onClick={() => openEditModal(entry)}
-                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                          index !== filteredEntries.length - 1
-                            ? "border-b border-white/5"
-                            : ""
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-zinc-200 truncate">
-                            {entry.description}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                            <span>{formatCategory(entry.category)}</span>
-                            <span>•</span>
-                            <span>{formatDate(entry.date)}</span>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`shrink-0 font-medium text-sm ${
-                            entry.type === "income"
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }`}
-                        >
-                          {entry.type === "income" ? "+" : "-"}
-                          {formatCurrency(entry.amount, currency)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           </section>
         </div>
