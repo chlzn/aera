@@ -21,6 +21,7 @@ type EntryCategory =
   | "food"
   | "transport"
   | "bills"
+  | "subscription"
   | "shopping"
   | "health"
   | "entertainment"
@@ -54,6 +55,7 @@ const expenseCategories: { value: EntryCategory; label: string }[] = [
   { value: "food", label: "Food" },
   { value: "transport", label: "Transport" },
   { value: "bills", label: "Bills" },
+  { value: "subscription", label: "Subscription" },
   { value: "shopping", label: "Shopping" },
   { value: "health", label: "Health" },
   { value: "entertainment", label: "Entertainment" },
