@@ -117,8 +117,8 @@ export default function Spending() {
 
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | EntryType>("all")
-  const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>("all")
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
+  const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>("all")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
@@ -166,6 +166,19 @@ export default function Spending() {
     return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
   }, [entries, selectedPeriod])
 
+  const filteredEntries = useMemo(() => {
+    return periodEntries.filter((entry) => {
+      const matchesType = filter === "all" ? true : entry.type === filter
+      const matchesCategory =
+        categoryFilter === "all" ? true : entry.category === categoryFilter
+      const matchesSearch = entry.description
+        .toLowerCase()
+        .includes(search.toLowerCase())
+
+      return matchesType && matchesCategory && matchesSearch
+    })
+  }, [periodEntries, filter, categoryFilter, search])
+
   const income = periodEntries
     .filter((entry) => entry.type === "income")
     .reduce((acc, entry) => acc + entry.amount, 0)
@@ -184,19 +197,6 @@ export default function Spending() {
     if (filter === "expense") return expenseCategories
     return [...incomeCategories, ...expenseCategories]
   }, [filter])
-
-  const filteredEntries = useMemo(() => {
-    return periodEntries.filter((entry) => {
-      const matchesType = filter === "all" ? true : entry.type === filter
-      const matchesCategory =
-        categoryFilter === "all" ? true : entry.category === categoryFilter
-      const matchesSearch = entry.description
-        .toLowerCase()
-        .includes(search.toLowerCase())
-
-      return matchesType && matchesCategory && matchesSearch
-    })
-  }, [periodEntries, filter, categoryFilter, search])
 
   const categoryTotal = useMemo(() => {
     if (filter !== "expense" || categoryFilter === "all") return 0
@@ -219,18 +219,10 @@ export default function Spending() {
       return acc
     }, {})
 
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1])
-
-    const otherEntry = sorted.find(([category]) => category === "other")
-    const withoutOther = sorted.filter(([category]) => category !== "other")
-
-    const top3 = withoutOther.slice(0, 3)
-
-    if (otherEntry) {
-      top3.push(otherEntry)
-    }
-
-    return top3
+    return Object.entries(totals)
+      .filter(([category]) => category !== "other")
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
   }, [periodEntries])
 
   const spendingInsight = useMemo(() => {
@@ -446,22 +438,26 @@ export default function Spending() {
 
           {topCategories.length > 0 && (
             <section className="mb-10">
-              <div className="rounded-2xl border border-[#F5A623]/[0.08] bg-[#F5A623]/[0.03] p-4 space-y-2.5">
-                <p className="text-white text-sm font-medium">Top categories</p>
+              <div className="rounded-[26px] border border-white/[0.04] bg-[#F5A623]/[0.025] p-5">
+                <p className="text-white/70 text-sm font-medium mb-4">
+                  Top categories
+                </p>
 
-                {topCategories.map(([category, total]) => (
-                  <div
-                    key={category}
-                    className="flex items-center justify-between gap-4"
-                  >
-                    <span className="text-zinc-300 text-sm">
-                      {formatCategory(category)}
-                    </span>
-                    <span className="text-white text-sm font-medium">
-                      {formatCurrency(total, currency)}
-                    </span>
-                  </div>
-                ))}
+                <div className="space-y-3">
+                  {topCategories.map(([category, total]) => (
+                    <div
+                      key={category}
+                      className="flex items-center justify-between gap-4"
+                    >
+                      <span className="text-zinc-300 text-sm">
+                        {formatCategory(category)}
+                      </span>
+                      <span className="text-white text-sm font-medium">
+                        {formatCurrency(total, currency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </section>
           )}
