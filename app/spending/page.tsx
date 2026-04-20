@@ -117,13 +117,13 @@ export default function Spending() {
 
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | EntryType>("all")
-  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>("all")
+  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
   const [error, setError] = useState("")
-  
+
   useEffect(() => {
     try {
       const savedEntries = localStorage.getItem("entries")
@@ -155,7 +155,7 @@ export default function Spending() {
   }, [type])
 
   useEffect(() => {
-  setCategoryFilter("all")
+    setCategoryFilter("all")
   }, [filter])
 
   const availablePeriods = useMemo(() => {
@@ -165,19 +165,6 @@ export default function Spending() {
   const periodEntries = useMemo(() => {
     return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
   }, [entries, selectedPeriod])
-
-  const filteredEntries = useMemo(() => {
-  return periodEntries.filter((entry) => {
-    const matchesType = filter === "all" ? true : entry.type === filter
-    const matchesCategory =
-      categoryFilter === "all" ? true : entry.category === categoryFilter
-    const matchesSearch = entry.description
-      .toLowerCase()
-      .includes(search.toLowerCase())
-
-      return matchesType && matchesCategory && matchesSearch
-    })
-  }, [periodEntries, filter, categoryFilter, search])
 
   const income = periodEntries
     .filter((entry) => entry.type === "income")
@@ -191,12 +178,51 @@ export default function Spending() {
 
   const currentCategories =
     type === "income" ? incomeCategories : expenseCategories
-  
+
   const availableFilterCategories = useMemo(() => {
-  if (filter === "income") return incomeCategories
-  if (filter === "expense") return expenseCategories
-  return [...incomeCategories, ...expenseCategories]
-}, [filter])  
+    if (filter === "income") return incomeCategories
+    if (filter === "expense") return expenseCategories
+    return [...incomeCategories, ...expenseCategories]
+  }, [filter])
+
+  const filteredEntries = useMemo(() => {
+    return periodEntries.filter((entry) => {
+      const matchesType = filter === "all" ? true : entry.type === filter
+      const matchesCategory =
+        categoryFilter === "all" ? true : entry.category === categoryFilter
+      const matchesSearch = entry.description
+        .toLowerCase()
+        .includes(search.toLowerCase())
+
+      return matchesType && matchesCategory && matchesSearch
+    })
+  }, [periodEntries, filter, categoryFilter, search])
+
+  const categoryTotal = useMemo(() => {
+    if (filter !== "expense" || categoryFilter === "all") return 0
+
+    return periodEntries
+      .filter(
+        (entry) =>
+          entry.type === "expense" && entry.category === categoryFilter
+      )
+      .reduce((sum, entry) => sum + entry.amount, 0)
+  }, [filter, categoryFilter, periodEntries])
+
+  const topCategories = useMemo(() => {
+    const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
+
+    if (expenseEntries.length === 0) return []
+
+    const totals = expenseEntries.reduce<Record<string, number>>((acc, entry) => {
+      acc[entry.category] = (acc[entry.category] || 0) + entry.amount
+      return acc
+    }, {})
+
+    return Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+  }, [periodEntries])
 
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0) {
@@ -359,11 +385,7 @@ export default function Spending() {
                   {formatPeriodLabel(selectedPeriod)}
                 </p>
 
-                <h2
-                  className={`text-5xl font-semibold tracking-tight ${
-                    net >= 0 ? "text-white" : "text-white"
-                  }`}
-                >
+                <h2 className="text-5xl font-semibold tracking-tight">
                   {formatCurrency(net, currency)}
                 </h2>
 
@@ -413,6 +435,30 @@ export default function Spending() {
             </div>
           </section>
 
+          {topCategories.length > 0 && (
+            <section className="mb-8">
+              <p className="text-white text-sm font-medium mb-4">
+                Top categories this month
+              </p>
+
+              <div className="space-y-3">
+                {topCategories.map(([category, total]) => (
+                  <div
+                    key={category}
+                    className="flex items-center justify-between gap-4"
+                  >
+                    <span className="text-zinc-400 text-sm">
+                      {formatCategory(category)}
+                    </span>
+                    <span className="text-white text-sm font-medium">
+                      {formatCurrency(total, currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="mb-24">
             <button
               type="button"
@@ -433,90 +479,105 @@ export default function Spending() {
 
             <div
               className={`transition-[max-height,opacity] duration-200 ease-out overflow-hidden ${
-                isHistoryOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
+                isHistoryOpen ? "max-h-[1600px] opacity-100" : "max-h-0 opacity-0"
               }`}
             >
               <div className="space-y-4">
-  <div>
-    <div className="grid grid-cols-2 gap-3 mb-4">
-      <select
-        value={filter}
-        onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
-        className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-      >
-        <option value="all">All types</option>
-        <option value="income">Income</option>
-        <option value="expense">Expenses</option>
-      </select>
+                <div>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <select
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+                      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                    >
+                      <option value="all">All types</option>
+                      <option value="income">Income</option>
+                      <option value="expense">Expenses</option>
+                    </select>
 
-      <select
-        value={categoryFilter}
-        onChange={(e) =>
-          setCategoryFilter(e.target.value as "all" | EntryCategory)
-        }
-        className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-      >
-        <option value="all">All categories</option>
-        {availableFilterCategories.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
-    </div>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) =>
+                        setCategoryFilter(e.target.value as "all" | EntryCategory)
+                      }
+                      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                    >
+                      <option value="all">All categories</option>
+                      {availableFilterCategories.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-    <input
-      placeholder="Search transactions"
-      value={search}
-      onChange={(e) => setSearch(e.target.value)}
-      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-    />
-  </div>
+                  <input
+                    placeholder="Search transactions"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                  />
+                </div>
 
-  {filteredEntries.length === 0 ? (
-    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-      <p className="text-zinc-300 text-sm">
-        No transactions in this period.
-      </p>
-      <p className="text-zinc-600 text-sm mt-1">
-        Select another month or add a new transaction.
-      </p>
-    </div>
-  ) : (
-    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-      {filteredEntries.map((entry, index) => (
-        <button
-          key={entry.id}
-          type="button"
-          onClick={() => openEditModal(entry)}
-          className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-            index !== filteredEntries.length - 1
-              ? "border-b border-white/5"
-              : ""
-          }`}
-        >
-          <div className="min-w-0">
-            <p className="text-zinc-200 truncate">{entry.description}</p>
-            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-              <span>{formatCategory(entry.category)}</span>
-              <span>•</span>
-              <span>{formatDate(entry.date)}</span>
-            </div>
-          </div>
+                {filter === "expense" && categoryFilter !== "all" && (
+                  <div>
+                    <p className="text-zinc-400 text-xs">
+                      {formatCategory(categoryFilter)}
+                    </p>
+                    <p className="text-white text-lg font-medium mt-1">
+                      {formatCurrency(categoryTotal, currency)} this month
+                    </p>
+                  </div>
+                )}
 
-          <span
-            className={`shrink-0 font-medium text-sm ${
-              entry.type === "income" ? "text-green-500" : "text-red-500"
-            }`}
-          >
-            {entry.type === "income" ? "+" : "-"}
-            {formatCurrency(entry.amount, currency)}
-          </span>
-        </button>
-      ))}
-    </div>
-  )}
-</div>
+                {filteredEntries.length === 0 ? (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+                    <p className="text-zinc-300 text-sm">
+                      No transactions in this period.
+                    </p>
+                    <p className="text-zinc-600 text-sm mt-1">
+                      Select another month or add a new transaction.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    {filteredEntries.map((entry, index) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => openEditModal(entry)}
+                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                          index !== filteredEntries.length - 1
+                            ? "border-b border-white/5"
+                            : ""
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-zinc-200 truncate">
+                            {entry.description}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+                            <span>{formatCategory(entry.category)}</span>
+                            <span>•</span>
+                            <span>{formatDate(entry.date)}</span>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`shrink-0 font-medium text-sm ${
+                            entry.type === "income"
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {entry.type === "income" ? "+" : "-"}
+                          {formatCurrency(entry.amount, currency)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         </div>
