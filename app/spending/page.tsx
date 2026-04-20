@@ -166,19 +166,6 @@ export default function Spending() {
     return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
   }, [entries, selectedPeriod])
 
-  const filteredEntries = useMemo(() => {
-    return periodEntries.filter((entry) => {
-      const matchesType = filter === "all" ? true : entry.type === filter
-      const matchesCategory =
-        categoryFilter === "all" ? true : entry.category === categoryFilter
-      const matchesSearch = entry.description
-        .toLowerCase()
-        .includes(search.toLowerCase())
-
-      return matchesType && matchesCategory && matchesSearch
-    })
-  }, [periodEntries, filter, categoryFilter, search])
-
   const income = periodEntries
     .filter((entry) => entry.type === "income")
     .reduce((acc, entry) => acc + entry.amount, 0)
@@ -198,16 +185,49 @@ export default function Spending() {
     return [...incomeCategories, ...expenseCategories]
   }, [filter])
 
-  const categoryTotal = useMemo(() => {
-    if (filter !== "expense" || categoryFilter === "all") return 0
+  const filteredEntries = useMemo(() => {
+    return periodEntries.filter((entry) => {
+      const matchesType = filter === "all" ? true : entry.type === filter
+      const matchesCategory =
+        categoryFilter === "all" ? true : entry.category === categoryFilter
+      const matchesSearch = entry.description
+        .toLowerCase()
+        .includes(search.toLowerCase())
+
+      return matchesType && matchesCategory && matchesSearch
+    })
+  }, [periodEntries, filter, categoryFilter, search])
+
+  const filteredTotal = useMemo(() => {
+    const hasTypeFilter = filter !== "all"
+    const hasCategoryFilter = categoryFilter !== "all"
+
+    if (!hasTypeFilter && !hasCategoryFilter) return 0
 
     return periodEntries
-      .filter(
-        (entry) =>
-          entry.type === "expense" && entry.category === categoryFilter
-      )
+      .filter((entry) => {
+        const matchesType = filter === "all" ? true : entry.type === filter
+        const matchesCategory =
+          categoryFilter === "all" ? true : entry.category === categoryFilter
+
+        return matchesType && matchesCategory
+      })
       .reduce((sum, entry) => sum + entry.amount, 0)
-  }, [filter, categoryFilter, periodEntries])
+  }, [periodEntries, filter, categoryFilter])
+
+  const filteredTotalLabel = useMemo(() => {
+    if (categoryFilter !== "all") {
+      return formatCategory(categoryFilter)
+    }
+
+    if (filter === "income") return "Income"
+    if (filter === "expense") return "Expenses"
+
+    return ""
+  }, [filter, categoryFilter])
+
+  const shouldShowFilteredTotal =
+    filter !== "all" || categoryFilter !== "all"
 
   const topCategories = useMemo(() => {
     const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
@@ -438,8 +458,8 @@ export default function Spending() {
 
           {topCategories.length > 0 && (
             <section className="mb-10">
-              <div className="rounded-[26px] border border-white/[0.04] bg-[#F5A623]/[0.025] p-5">
-                <p className="text-white/70 text-sm font-medium mb-4">
+              <div className="rounded-[26px] bg-zinc-900/45 border border-[#F5A623]/20 p-5">
+                <p className="text-white/80 text-sm font-medium mb-4">
                   Top categories
                 </p>
 
@@ -522,13 +542,11 @@ export default function Spending() {
                   />
                 </div>
 
-                {filter === "expense" && categoryFilter !== "all" && (
+                {shouldShowFilteredTotal && (
                   <div>
-                    <p className="text-zinc-400 text-xs">
-                      {formatCategory(categoryFilter)}
-                    </p>
+                    <p className="text-zinc-400 text-xs">{filteredTotalLabel}</p>
                     <p className="text-white text-lg font-medium mt-1">
-                      {formatCurrency(categoryTotal, currency)} this month
+                      {formatCurrency(filteredTotal, currency)} this month
                     </p>
                   </div>
                 )}
