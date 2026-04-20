@@ -219,9 +219,18 @@ export default function Spending() {
       return acc
     }, {})
 
-    return Object.entries(totals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1])
+
+    const otherEntry = sorted.find(([category]) => category === "other")
+    const withoutOther = sorted.filter(([category]) => category !== "other")
+
+    const top3 = withoutOther.slice(0, 3)
+
+    if (otherEntry) {
+      top3.push(otherEntry)
+    }
+
+    return top3
   }, [periodEntries])
 
   const spendingInsight = useMemo(() => {
@@ -436,18 +445,16 @@ export default function Spending() {
           </section>
 
           {topCategories.length > 0 && (
-            <section className="mb-8">
-              <p className="text-white text-sm font-medium mb-4">
-                Top categories this month
-              </p>
+            <section className="mb-10">
+              <div className="rounded-2xl border border-[#F5A623]/[0.08] bg-[#F5A623]/[0.03] p-4 space-y-2.5">
+                <p className="text-white text-sm font-medium">Top categories</p>
 
-              <div className="space-y-3">
                 {topCategories.map(([category, total]) => (
                   <div
                     key={category}
                     className="flex items-center justify-between gap-4"
                   >
-                    <span className="text-zinc-400 text-sm">
+                    <span className="text-zinc-300 text-sm">
                       {formatCategory(category)}
                     </span>
                     <span className="text-white text-sm font-medium">
