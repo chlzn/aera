@@ -195,7 +195,7 @@ export function buildFutureSummaries(params: {
 }
 
 export function getSimulatorStatus(finalChange: number) {
-  if (finalChange < 0) return "You may run short this period."
+  if (finalChange < 0) return "Watch your spending."
   if (finalChange <= 300) return "Tight balance ahead."
-  return "You're on track."
+  return "You’re on track."
 }

@@ -246,23 +246,25 @@ export default function FutureSimulatorPage() {
           </header>
 
           <section className="mb-8">
-            <div className="grid grid-cols-4 gap-2 sm:gap-3">
-              {(["1M", "3M", "6M", "12M"] as SimulatorPeriodOption[]).map(
-                (option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setPeriod(option)}
-                    className={`h-[42px] rounded-full text-sm border transition-all duration-150 ease-out ${
-                      period === option
-                        ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                        : "bg-zinc-900/55 border-white/5 text-zinc-400"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                )
-              )}
+            <div className="rounded-full bg-zinc-900/45 border border-white/5 p-1.5">
+              <div className="grid grid-cols-4 gap-1.5">
+                {(["1M", "3M", "6M", "12M"] as SimulatorPeriodOption[]).map(
+                  (option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setPeriod(option)}
+                      className={`h-[42px] rounded-full text-sm transition-all duration-150 ease-out ${
+                        period === option
+                          ? "bg-[var(--accent)]/90 text-black"
+                          : "text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {option}
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </section>
 
@@ -279,7 +281,7 @@ export default function FutureSimulatorPage() {
             <>
               <section className="mb-6">
                 <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
-                  <p className="text-zinc-500 text-sm mb-3">
+                  <p className="text-zinc-600 text-sm mb-3">
                     In {period.replace("M", "")} month
                     {period === "1M" ? "" : "s"}
                   </p>
@@ -307,7 +309,7 @@ export default function FutureSimulatorPage() {
                     <button
                       type="button"
                       onClick={openCreateModal}
-                      className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
+                      className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)]/88 text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent)] active:scale-[0.98]"
                     >
                       + Add adjustment
                     </button>
@@ -333,7 +335,7 @@ export default function FutureSimulatorPage() {
                           <p className="text-zinc-200 truncate">
                             {adjustment.note?.trim() || "Adjustment"}
                           </p>
-                          <p className="text-xs text-zinc-600 mt-1">
+                          <p className="text-xs text-zinc-600 mt-2">
                             {formatMonthLabel(adjustment.date)}
                           </p>
                         </div>
@@ -365,16 +367,18 @@ export default function FutureSimulatorPage() {
                   {summaries.map((month, index) => (
                     <div
                       key={month.periodKey}
-                      className={`flex items-center justify-between gap-4 px-5 py-4 ${
+                      className={`flex items-center justify-between gap-4 px-5 py-5 ${
                         index !== summaries.length - 1
                           ? "border-b border-white/5"
                           : ""
                       }`}
                     >
-                      <span className="text-zinc-200">{month.label}</span>
+                      <span className="text-zinc-300 font-medium">
+                        {month.label}
+                      </span>
 
                       <span
-                        className={`shrink-0 font-medium ${
+                        className={`shrink-0 font-semibold ${
                           month.netChange > 0
                             ? "text-green-500"
                             : month.netChange < 0
