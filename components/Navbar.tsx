@@ -10,19 +10,22 @@ export default function Navbar() {
     { href: "/", label: "Home" },
     { href: "/spending", label: "Spending" },
     { href: "/investments", label: "Investments" },
+    { href: "/tools", label: "Tools" },
     { href: "/settings", label: "Settings" },
   ]
 
   return (
     <nav
-      className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md bg-zinc-900/80 border border-white/5 rounded-[22px] px-3 py-2 backdrop-blur-xl shadow-[0_10px_36px_rgba(0,0,0,0.38)]"
+      className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md bg-zinc-900/80 border border-white/5 rounded-[28px] backdrop-blur-xl px-4 py-3 shadow-[0_12px_32px_rgba(0,0,0,0.32)]"
       style={{
         bottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
-      <div className="grid grid-cols-4 text-center text-sm">
+      <div className="grid grid-cols-5 text-center text-sm">
         {links.map((link) => {
-          const isActive = pathname === link.href
+          const isActive =
+            pathname === link.href ||
+            (link.href !== "/" && pathname.startsWith(link.href))
 
           return (
             <Link

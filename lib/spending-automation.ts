@@ -173,9 +173,11 @@ export function generateEntriesForPeriod(
 
       for (let index = 0; index < template.automation.installmentCount; index++) {
         const occurrenceDate =
-          template.automation.frequency === "monthly"
-            ? addMonths(startDate, index)
-            : addDays(startDate, index * 14)
+  template.automation.frequency === "monthly"
+    ? addMonths(startDate, index)
+    : template.automation.frequency === "weekly"
+    ? addDays(startDate, index * 7)
+    : addDays(startDate, index * 14)
 
         if (!samePeriod(occurrenceDate, periodKey)) continue
 
