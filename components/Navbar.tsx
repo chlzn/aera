@@ -6,7 +6,7 @@ import {
   House,
   Wallet,
   ChartNoAxesCombined,
-  Sparkles,
+  SlidersHorizontal,
   Settings,
 } from "lucide-react"
 
@@ -17,7 +17,7 @@ export default function Navbar() {
     { href: "/", label: "Home", icon: House },
     { href: "/spending", label: "Spending", icon: Wallet },
     { href: "/investments", label: "Invest", icon: ChartNoAxesCombined },
-    { href: "/tools", label: "Tools", icon: Sparkles },
+    { href: "/tools", label: "Tools", icon: SlidersHorizontal },
     { href: "/settings", label: "Settings", icon: Settings },
   ]
 
@@ -40,10 +40,10 @@ export default function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              className="flex flex-col items-center justify-center gap-1.5 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+              className="flex flex-col items-center justify-center gap-1 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
             >
               <Icon
-                size={18}
+                size={20}
                 strokeWidth={2}
                 className={`transition-all duration-200 ease-out ${
                   isActive
@@ -53,7 +53,7 @@ export default function Navbar() {
               />
 
               <span
-                className={`text-[11px] leading-none transition-all duration-200 ease-out ${
+                className={`text-[10px] tracking light leading-none transition-all duration-200 ease-out ${
                   isActive
                     ? "text-white font-semibold"
                     : "text-zinc-500"
