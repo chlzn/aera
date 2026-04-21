@@ -345,8 +345,8 @@ export default function FutureSimulatorPage() {
                         <span
                           className={`shrink-0 text-sm font-medium ${
                             adjustment.type === "income"
-                              ? "text-green-400"
-                              : "text-rose-400"
+                              ? "text-green-500"
+                              : "text-red-500"
                           }`}
                         >
                           {adjustment.type === "income" ? "+" : "-"}
@@ -382,9 +382,9 @@ export default function FutureSimulatorPage() {
                       <span
                         className={`shrink-0 text-base font-medium ${
                           month.netChange > 0
-                            ? "text-green-400"
+                            ? "text-green-500"
                             : month.netChange < 0
-                            ? "text-rose-400"
+                            ? "text-red-500"
                             : "text-zinc-400"
                         }`}
                       >

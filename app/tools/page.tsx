@@ -19,7 +19,7 @@ export default function ToolsPage() {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.03] border border-white/[0.05] text-zinc-400 transition-colors duration-200 group-hover:text-zinc-300">
+                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/[0.06] border border-[var(--accent)]/[0.14] text-[var(--accent)] transition-colors duration-200 group-hover:bg-[var(--accent)]/[0.08] group-hover:border-[var(--accent)]/[0.18]">
                   <TrendingUp size={17} strokeWidth={2} />
                 </div>
 
