@@ -2,16 +2,23 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import {
+  House,
+  Wallet,
+  ChartNoAxesCombined,
+  Sparkles,
+  Settings,
+} from "lucide-react"
 
 export default function Navbar() {
   const pathname = usePathname()
 
   const links = [
-    { href: "/", label: "Home" },
-    { href: "/spending", label: "Spending" },
-    { href: "/investments", label: "Invest" },
-    { href: "/tools", label: "Tools" },
-    { href: "/settings", label: "Settings" },
+    { href: "/", label: "Home", icon: House },
+    { href: "/spending", label: "Spending", icon: Wallet },
+    { href: "/investments", label: "Invest", icon: ChartNoAxesCombined },
+    { href: "/tools", label: "Tools", icon: Sparkles },
+    { href: "/settings", label: "Settings", icon: Settings },
   ]
 
   return (
@@ -21,20 +28,32 @@ export default function Navbar() {
         bottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
-      <div className="grid grid-cols-5 text-center">
+      <div className="grid grid-cols-5">
         {links.map((link) => {
           const isActive =
             pathname === link.href ||
             (link.href !== "/" && pathname.startsWith(link.href))
 
+          const Icon = link.icon
+
           return (
             <Link
               key={link.href}
               href={link.href}
-              className="flex flex-col items-center justify-center gap-1 py-2 transition-all duration-150"
+              className="flex flex-col items-center justify-center gap-1.5 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
             >
+              <Icon
+                size={18}
+                strokeWidth={2}
+                className={`transition-all duration-200 ease-out ${
+                  isActive
+                    ? "text-white scale-105"
+                    : "text-zinc-500"
+                }`}
+              />
+
               <span
-                className={`text-[12px] leading-none ${
+                className={`text-[11px] leading-none transition-all duration-200 ease-out ${
                   isActive
                     ? "text-white font-semibold"
                     : "text-zinc-500"
@@ -44,10 +63,8 @@ export default function Navbar() {
               </span>
 
               <div
-                className={`h-[2px] w-5 rounded-full transition-all duration-150 ${
-                  isActive
-                    ? "bg-[#F5A623] opacity-100"
-                    : "opacity-0"
+                className={`h-[2px] rounded-full bg-[#F5A623] transition-all duration-200 ease-out ${
+                  isActive ? "w-7 opacity-100" : "w-4 opacity-0"
                 }`}
               />
             </Link>
