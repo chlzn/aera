@@ -46,7 +46,7 @@ export type AutomationTemplate =
         kind: "installment"
         totalAmount: number
         installmentCount: number
-        frequency: "monthly" | "biweekly"
+        frequency: "monthly" | "biweekly" | "weekly"
         startDate: string
       }
     }

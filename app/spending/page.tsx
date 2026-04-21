@@ -96,6 +96,18 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
+function formatRecurringFrequencyLabel(frequency: "monthly" | "weekly") {
+  return frequency === "monthly" ? "every month" : "every week"
+}
+
+function formatInstallmentFrequencyLabel(
+  frequency: "monthly" | "weekly" | "biweekly"
+) {
+  if (frequency === "monthly") return "every month"
+  if (frequency === "weekly") return "every week"
+  return "every 2 weeks"
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
 
@@ -116,10 +128,10 @@ export default function Spending() {
     "monthly"
   )
   const [installmentFrequency, setInstallmentFrequency] = useState<
-    "monthly" | "biweekly"
+    "monthly" | "weekly" | "biweekly"
   >("monthly")
   const [installmentTotalAmount, setInstallmentTotalAmount] = useState("")
-  const [installmentCount, setInstallmentCount] = useState("2")
+  const [installmentCount, setInstallmentCount] = useState("")
   const [automationStartDate, setAutomationStartDate] = useState(getTodayDate())
 
   const [search, setSearch] = useState("")
@@ -311,6 +323,48 @@ export default function Spending() {
     return "You’re spending more than you earn this month."
   }, [periodEntries.length, income, expenses])
 
+  const installmentPreview = useMemo(() => {
+    const parsedTotal = Number(installmentTotalAmount)
+    const parsedCount =
+      installmentCount.trim() === "" ? 2 : Number(installmentCount)
+
+    if (
+      automationMode !== "installment" ||
+      Number.isNaN(parsedTotal) ||
+      parsedTotal <= 0 ||
+      Number.isNaN(parsedCount) ||
+      parsedCount < 2
+    ) {
+      return ""
+    }
+
+    const perPayment = parsedTotal / parsedCount
+
+    return `${formatCurrency(parsedTotal, currency)} total → ${formatCurrency(
+      perPayment,
+      currency
+    )} ${formatInstallmentFrequencyLabel(installmentFrequency)} · ${parsedCount} payments`
+  }, [automationMode, installmentTotalAmount, installmentCount, installmentFrequency, currency])
+
+  const recurringPreview = useMemo(() => {
+    const parsedAmount = Number(amount)
+
+    if (
+      automationMode !== "recurring" ||
+      Number.isNaN(parsedAmount) ||
+      parsedAmount <= 0
+    ) {
+      return ""
+    }
+
+    const signal = type === "income" ? "+" : "-"
+
+    return `${signal}${formatCurrency(
+      parsedAmount,
+      currency
+    )} ${formatRecurringFrequencyLabel(recurringFrequency)}`
+  }, [automationMode, amount, recurringFrequency, type, currency])
+
   const resetForm = () => {
     setDescription("")
     setAmount("")
@@ -322,7 +376,7 @@ export default function Spending() {
     setRecurringFrequency("monthly")
     setInstallmentFrequency("monthly")
     setInstallmentTotalAmount("")
-    setInstallmentCount("2")
+    setInstallmentCount("")
     setAutomationStartDate(getTodayDate())
 
     setEditingEntryId(null)
@@ -347,7 +401,7 @@ export default function Spending() {
       setRecurringFrequency("monthly")
       setInstallmentFrequency("monthly")
       setInstallmentTotalAmount("")
-      setInstallmentCount("2")
+      setInstallmentCount("")
       setAutomationStartDate(entry.date)
 
       setEditingEntryId(entry.id)
@@ -374,7 +428,7 @@ export default function Spending() {
       setAutomationStartDate(template.automation.startDate)
       setDate(template.automation.startDate)
       setInstallmentTotalAmount("")
-      setInstallmentCount("2")
+      setInstallmentCount("")
     }
 
     if (template.automation.kind === "installment") {
@@ -511,7 +565,8 @@ export default function Spending() {
 
     if (automationMode === "installment") {
       const parsedTotal = Number(installmentTotalAmount)
-      const parsedCount = Number(installmentCount)
+      const parsedCount =
+        installmentCount.trim() === "" ? 2 : Number(installmentCount)
 
       if (
         !installmentTotalAmount ||
@@ -522,7 +577,7 @@ export default function Spending() {
         return
       }
 
-      if (!installmentCount || Number.isNaN(parsedCount) || parsedCount < 2) {
+      if (Number.isNaN(parsedCount) || parsedCount < 2) {
         setError("Please enter a valid number of payments.")
         return
       }
@@ -621,10 +676,6 @@ export default function Spending() {
           <section className="mb-6">
             <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
               <div>
-                <p className="text-zinc-500 text-sm mb-3">
-                  {formatPeriodLabel(selectedPeriod)}
-                </p>
-
                 <h2 className="text-5xl font-semibold tracking-tight">
                   {formatCurrency(net, currency)}
                 </h2>
@@ -909,49 +960,42 @@ export default function Spending() {
                   </select>
                 </div>
 
-                <div className="mt-2">
-                  <p className="text-xs text-zinc-500 mb-2">Automation</p>
-                  <p className="text-[11px] text-zinc-600 mb-3">
-                    Choose how this transaction should behave.
-                  </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAutomationMode("one_time")}
+                    className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
+                      automationMode === "one_time"
+                        ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                        : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                    }`}
+                  >
+                    One-time
+                  </button>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAutomationMode("one_time")}
-                      className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
-                        automationMode === "one_time"
-                          ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                          : "bg-zinc-800/80 border-white/5 text-zinc-400"
-                      }`}
-                    >
-                      One-time
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => setAutomationMode("installment")}
+                    className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
+                      automationMode === "installment"
+                        ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                        : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                    }`}
+                  >
+                    Installment
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setAutomationMode("installment")}
-                      className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
-                        automationMode === "installment"
-                          ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                          : "bg-zinc-800/80 border-white/5 text-zinc-400"
-                      }`}
-                    >
-                      Installment
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setAutomationMode("recurring")}
-                      className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
-                        automationMode === "recurring"
-                          ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                          : "bg-zinc-800/80 border-white/5 text-zinc-400"
-                      }`}
-                    >
-                      Recurring
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutomationMode("recurring")}
+                    className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
+                      automationMode === "recurring"
+                        ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                        : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                    }`}
+                  >
+                    Recurring
+                  </button>
                 </div>
 
                 {automationMode === "one_time" && (
@@ -1011,6 +1055,12 @@ export default function Spending() {
                       onChange={(e) => setAutomationStartDate(e.target.value)}
                       className={fieldClass}
                     />
+
+                    {recurringPreview && (
+                      <p className="text-xs text-zinc-500 pt-1">
+                        {recurringPreview}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1044,12 +1094,13 @@ export default function Spending() {
                         value={installmentFrequency}
                         onChange={(e) =>
                           setInstallmentFrequency(
-                            e.target.value as "monthly" | "biweekly"
+                            e.target.value as "monthly" | "weekly" | "biweekly"
                           )
                         }
                         className={fieldClass}
                       >
                         <option value="monthly">Monthly</option>
+                        <option value="weekly">Weekly</option>
                         <option value="biweekly">Every 2 weeks</option>
                       </select>
                     </div>
@@ -1060,6 +1111,12 @@ export default function Spending() {
                       onChange={(e) => setAutomationStartDate(e.target.value)}
                       className={fieldClass}
                     />
+
+                    {installmentPreview && (
+                      <p className="text-xs text-zinc-500 pt-1">
+                        {installmentPreview}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1070,11 +1127,7 @@ export default function Spending() {
                   onClick={handleSubmit}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
-                  {editingEntryId || editingTemplateId
-                    ? "Save"
-                    : automationMode === "one_time"
-                    ? "Add transaction"
-                    : "Create automation"}
+                  Add transaction
                 </button>
 
                 {(editingEntryId || editingTemplateId) && (
