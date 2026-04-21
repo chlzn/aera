@@ -56,6 +56,10 @@ function monthsFromOption(option: SimulatorPeriodOption) {
   return 12
 }
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+}
+
 function isSamePeriod(date: string, periodKey: string) {
   const d = new Date(date)
   if (Number.isNaN(d.getTime())) return false
@@ -86,16 +90,23 @@ export function buildFutureSummaries(params: {
 }) {
   const { templates, adjustments, period, fromDate = new Date() } = params
 
-  const startMonth = getMonthStart(fromDate)
+  const startDate = startOfDay(fromDate)
+  const startMonth = getMonthStart(startDate)
   const count = monthsFromOption(period)
 
   const months: FutureMonthSummary[] = []
 
-  for (let index = 1; index <= count; index++) {
+  for (let index = 0; index < count; index++) {
     const targetMonth = addMonths(startMonth, index)
     const periodKey = toPeriodKey(targetMonth)
 
-    const generated = generateEntriesForPeriod(templates, periodKey)
+    const generated = generateEntriesForPeriod(templates, periodKey).filter((entry) => {
+      const entryDate = new Date(entry.date)
+      if (index === 0) {
+        return entryDate >= startDate
+      }
+      return true
+    })
 
     const recurringIncome = generated
       .filter(
@@ -126,17 +137,37 @@ export function buildFutureSummaries(params: {
       .reduce((sum, entry) => sum + entry.amount, 0)
 
     const adjustmentsIncome = adjustments
-      .filter(
-        (adjustment) =>
-          adjustment.type === "income" && isSamePeriod(adjustment.date, periodKey)
-      )
+      .filter((adjustment) => {
+        if (
+          adjustment.type !== "income" ||
+          !isSamePeriod(adjustment.date, periodKey)
+        ) {
+          return false
+        }
+
+        if (index === 0) {
+          return new Date(adjustment.date) >= startDate
+        }
+
+        return true
+      })
       .reduce((sum, adjustment) => sum + adjustment.amount, 0)
 
     const adjustmentsExpenses = adjustments
-      .filter(
-        (adjustment) =>
-          adjustment.type === "expense" && isSamePeriod(adjustment.date, periodKey)
-      )
+      .filter((adjustment) => {
+        if (
+          adjustment.type !== "expense" ||
+          !isSamePeriod(adjustment.date, periodKey)
+        ) {
+          return false
+        }
+
+        if (index === 0) {
+          return new Date(adjustment.date) >= startDate
+        }
+
+        return true
+      })
       .reduce((sum, adjustment) => sum + adjustment.amount, 0)
 
     const netChange =

@@ -32,6 +32,13 @@ function getTodayDate() {
   return new Date().toISOString().split("T")[0]
 }
 
+function formatMonthLabel(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date))
+}
+
 function generateId() {
   if (
     typeof globalThis !== "undefined" &&
@@ -55,6 +62,7 @@ export default function FutureSimulatorPage() {
   const [period, setPeriod] = useState<SimulatorPeriodOption>("3M")
 
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingAdjustmentId, setEditingAdjustmentId] = useState<string | null>(null)
   const [adjustmentType, setAdjustmentType] = useState<"income" | "expense">(
     "expense"
   )
@@ -119,6 +127,7 @@ export default function FutureSimulatorPage() {
       templates,
       adjustments,
       period,
+      fromDate: new Date(),
     })
   }, [templates, adjustments, period])
 
@@ -132,7 +141,14 @@ export default function FutureSimulatorPage() {
   const hasBaseData = entries.length > 0 || templates.length > 0
   const hasAnyData = hasBaseData || adjustments.length > 0
 
+  const visibleAdjustments = useMemo(() => {
+    return [...adjustments].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+  }, [adjustments])
+
   const resetModal = () => {
+    setEditingAdjustmentId(null)
     setAdjustmentType("expense")
     setAdjustmentAmount("")
     setAdjustmentDate(getTodayDate())
@@ -140,8 +156,18 @@ export default function FutureSimulatorPage() {
     setError("")
   }
 
-  const openModal = () => {
+  const openCreateModal = () => {
     resetModal()
+    setIsModalOpen(true)
+  }
+
+  const openEditModal = (adjustment: SimulatorAdjustment) => {
+    setEditingAdjustmentId(adjustment.id)
+    setAdjustmentType(adjustment.type)
+    setAdjustmentAmount(String(adjustment.amount))
+    setAdjustmentDate(adjustment.date)
+    setAdjustmentNote(adjustment.note || "")
+    setError("")
     setIsModalOpen(true)
   }
 
@@ -150,7 +176,7 @@ export default function FutureSimulatorPage() {
     resetModal()
   }
 
-  const handleAddAdjustment = () => {
+  const handleSaveAdjustment = () => {
     const parsedAmount = Number(adjustmentAmount)
 
     if (!adjustmentAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -165,25 +191,46 @@ export default function FutureSimulatorPage() {
 
     const now = new Date().toISOString()
 
-    const newAdjustment: SimulatorAdjustment = {
-      id: generateId(),
-      type: adjustmentType,
-      amount: parsedAmount,
-      date: adjustmentDate,
-      note: adjustmentNote.trim() || undefined,
-      createdAt: now,
-      updatedAt: now,
+    if (editingAdjustmentId) {
+      setAdjustments((prev) =>
+        prev.map((adjustment) =>
+          adjustment.id === editingAdjustmentId
+            ? {
+                ...adjustment,
+                type: adjustmentType,
+                amount: parsedAmount,
+                date: adjustmentDate,
+                note: adjustmentNote.trim() || undefined,
+                updatedAt: now,
+              }
+            : adjustment
+        )
+      )
+    } else {
+      const newAdjustment: SimulatorAdjustment = {
+        id: generateId(),
+        type: adjustmentType,
+        amount: parsedAmount,
+        date: adjustmentDate,
+        note: adjustmentNote.trim() || undefined,
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      setAdjustments((prev) => [newAdjustment, ...prev])
     }
 
-    setAdjustments((prev) => [newAdjustment, ...prev])
     closeModal()
   }
 
-  const visibleAdjustments = useMemo(() => {
-    return [...adjustments].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  const handleDeleteAdjustment = () => {
+    if (!editingAdjustmentId) return
+
+    setAdjustments((prev) =>
+      prev.filter((adjustment) => adjustment.id !== editingAdjustmentId)
     )
-  }, [adjustments])
+    closeModal()
+  }
 
   return (
     <>
@@ -199,7 +246,7 @@ export default function FutureSimulatorPage() {
           </header>
 
           <section className="mb-8">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-2 sm:gap-3">
               {(["1M", "3M", "6M", "12M"] as SimulatorPeriodOption[]).map(
                 (option) => (
                   <button
@@ -259,7 +306,7 @@ export default function FutureSimulatorPage() {
 
                     <button
                       type="button"
-                      onClick={openModal}
+                      onClick={openCreateModal}
                       className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
                     >
                       + Add adjustment
@@ -272,9 +319,11 @@ export default function FutureSimulatorPage() {
                 <section className="mb-10">
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
                     {visibleAdjustments.map((adjustment, index) => (
-                      <div
+                      <button
                         key={adjustment.id}
-                        className={`flex items-center justify-between gap-4 px-5 py-4 ${
+                        type="button"
+                        onClick={() => openEditModal(adjustment)}
+                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] ${
                           index !== visibleAdjustments.length - 1
                             ? "border-b border-white/5"
                             : ""
@@ -285,10 +334,7 @@ export default function FutureSimulatorPage() {
                             {adjustment.note?.trim() || "Adjustment"}
                           </p>
                           <p className="text-xs text-zinc-600 mt-1">
-                            {new Intl.DateTimeFormat("en-US", {
-                              month: "short",
-                              year: "numeric",
-                            }).format(new Date(adjustment.date))}
+                            {formatMonthLabel(adjustment.date)}
                           </p>
                         </div>
 
@@ -302,7 +348,7 @@ export default function FutureSimulatorPage() {
                           {adjustment.type === "income" ? "+" : "-"}
                           {formatCurrency(adjustment.amount, currency)}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </section>
@@ -349,17 +395,16 @@ export default function FutureSimulatorPage() {
       </main>
 
       {isModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60"
-          onClick={closeModal}
-        >
+        <div className="fixed inset-0 z-50 bg-black/60" onClick={closeModal}>
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
               className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <p className="text-white text-sm font-medium">New adjustment</p>
+                <p className="text-white text-sm font-medium">
+                  {editingAdjustmentId ? "Edit adjustment" : "New adjustment"}
+                </p>
 
                 <button
                   type="button"
@@ -425,11 +470,21 @@ export default function FutureSimulatorPage() {
 
                 <button
                   type="button"
-                  onClick={handleAddAdjustment}
+                  onClick={handleSaveAdjustment}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98]"
                 >
-                  Add adjustment
+                  Save adjustment
                 </button>
+
+                {editingAdjustmentId && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteAdjustment}
+                    className="w-full text-center text-red-400 text-xs py-1 transition-colors duration-200 ease-out hover:text-red-300"
+                  >
+                    Delete adjustment
+                  </button>
+                )}
               </div>
             </div>
           </div>
