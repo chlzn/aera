@@ -40,7 +40,7 @@ export default function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              className="flex flex-col items-center justify-center gap-1 py-2 transition-all duration-200 ease-out active:scale-[60px]"
+              className="flex flex-col items-center justify-center gap-1 py-2 min-w-[60px] transition-all duration-200 ease-out active:scale-[0.96]"
             >
               <Icon
                 size={20}
@@ -48,15 +48,15 @@ export default function Navbar() {
                 className={`transition-all duration-200 ease-out ${
                   isActive
                     ? "text-white scale-105"
-                    : "text-zinc-500"
+                    : "text-zinc-500/80"
                 }`}
               />
 
               <span
-                className={`text-[10px] tracking-wide leading-none transition-all duration-200 ease-out ${
+                className={`text-[10px] tracking-wide transition-all duration-200 ease-out ${
                   isActive
-                    ? "text-white font-medium"
-                    : "text-zinc-500"
+                    ? "text-white font-semibold scale-[1.03]"
+                    : "text-zinc-500/80"
                 }`}
               >
                 {link.label}
