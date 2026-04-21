@@ -62,7 +62,9 @@ export default function FutureSimulatorPage() {
   const [period, setPeriod] = useState<SimulatorPeriodOption>("3M")
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingAdjustmentId, setEditingAdjustmentId] = useState<string | null>(null)
+  const [editingAdjustmentId, setEditingAdjustmentId] = useState<string | null>(
+    null
+  )
   const [adjustmentType, setAdjustmentType] = useState<"income" | "expense">(
     "expense"
   )
@@ -341,10 +343,10 @@ export default function FutureSimulatorPage() {
                         </div>
 
                         <span
-                          className={`shrink-0 font-medium text-sm ${
+                          className={`shrink-0 text-sm font-medium ${
                             adjustment.type === "income"
-                              ? "text-green-500"
-                              : "text-red-500"
+                              ? "text-green-400"
+                              : "text-rose-400"
                           }`}
                         >
                           {adjustment.type === "income" ? "+" : "-"}
@@ -378,11 +380,11 @@ export default function FutureSimulatorPage() {
                       </span>
 
                       <span
-                        className={`shrink-0 font-semibold ${
+                        className={`shrink-0 text-base font-medium ${
                           month.netChange > 0
-                            ? "text-green-500"
+                            ? "text-green-400"
                             : month.netChange < 0
-                            ? "text-red-500"
+                            ? "text-rose-400"
                             : "text-zinc-400"
                         }`}
                       >

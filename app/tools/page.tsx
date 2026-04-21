@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, Wrench } from "lucide-react"
+import { ArrowUpRight, TrendingUp } from "lucide-react"
 
 export default function ToolsPage() {
   return (
@@ -20,7 +20,7 @@ export default function ToolsPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.03] border border-white/[0.05] text-zinc-400 transition-colors duration-200 group-hover:text-zinc-300">
-                  <Wrench size={17} strokeWidth={2} />
+                  <TrendingUp size={17} strokeWidth={2} />
                 </div>
 
                 <div>
