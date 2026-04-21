@@ -391,162 +391,186 @@ export default function Spending() {
   }
 
   const handleSubmit = () => {
-    const now = new Date().toISOString()
+  const now = new Date().toISOString()
 
-    if (!description.trim()) {
-      setError("Please add a description.")
-      return
-    }
-
-    if (automationMode === "one_time") {
-      const parsedAmount = Number(amount)
-
-      if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError("Please enter a valid amount.")
-        return
-      }
-
-      if (!date) {
-        setError("Please select a date.")
-        return
-      }
-
-      if (editingEntryId) {
-        setEntries((prev) =>
-          prev.map((entry) =>
-            entry.id === editingEntryId
-              ? {
-                  ...entry,
-                  description: description.trim(),
-                  amount: parsedAmount,
-                  type,
-                  category,
-                  date,
-                  updatedAt: now,
-                }
-              : entry
-          )
-        )
-      } else {
-        const newEntry: Entry = {
-          id: generateId(),
-          description: description.trim(),
-          amount: parsedAmount,
-          type,
-          category,
-          date,
-          accountId: "main",
-          createdAt: now,
-          updatedAt: now,
-        }
-
-        setEntries((prev) => [newEntry, ...prev])
-      }
-
-      closeModal()
-      return
-    }
-
-    if (automationMode === "recurring") {
-      const parsedAmount = Number(amount)
-
-      if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError("Please enter a valid amount.")
-        return
-      }
-
-      if (!automationStartDate) {
-        setError("Please select a start date.")
-        return
-      }
-
-      const recurringTemplate: AutomationTemplate = {
-        id: editingTemplateId ?? generateId(),
-        description: description.trim(),
-        type,
-        category,
-        accountId: "main",
-        createdAt: now,
-        updatedAt: now,
-        automation: {
-          kind: "recurring",
-          amount: parsedAmount,
-          frequency: recurringFrequency,
-          startDate: automationStartDate,
-        },
-      }
-
-      if (editingTemplateId) {
-        setTemplates((prev) =>
-          prev.map((template) =>
-            template.id === editingTemplateId
-              ? { ...recurringTemplate, createdAt: template.createdAt }
-              : template
-          )
-        )
-      } else {
-        setTemplates((prev) => [recurringTemplate, ...prev])
-      }
-
-      closeModal()
-      return
-    }
-
-    if (automationMode === "installment") {
-      const parsedTotal = Number(installmentTotalAmount)
-      const parsedCount = Number(installmentCount)
-
-      if (
-        !installmentTotalAmount ||
-        Number.isNaN(parsedTotal) ||
-        parsedTotal <= 0
-      ) {
-        setError("Please enter a valid total amount.")
-        return
-      }
-
-      if (!installmentCount || Number.isNaN(parsedCount) || parsedCount < 2) {
-        setError("Please enter a valid number of payments.")
-        return
-      }
-
-      if (!automationStartDate) {
-        setError("Please select a start date.")
-        return
-      }
-
-      const installmentTemplate: AutomationTemplate = {
-        id: editingTemplateId ?? generateId(),
-        description: description.trim(),
-        type,
-        category,
-        accountId: "main",
-        createdAt: now,
-        updatedAt: now,
-        automation: {
-          kind: "installment",
-          totalAmount: parsedTotal,
-          installmentCount: parsedCount,
-          frequency: installmentFrequency,
-          startDate: automationStartDate,
-        },
-      }
-
-      if (editingTemplateId) {
-        setTemplates((prev) =>
-          prev.map((template) =>
-            template.id === editingTemplateId
-              ? { ...installmentTemplate, createdAt: template.createdAt }
-              : template
-          )
-        )
-      } else {
-        setTemplates((prev) => [installmentTemplate, ...prev])
-      }
-
-      closeModal()
-    }
+  if (!description.trim()) {
+    setError("Please add a description.")
+    return
   }
+
+  if (automationMode === "one_time") {
+    const parsedAmount = Number(amount)
+
+    if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError("Please enter a valid amount.")
+      return
+    }
+
+    if (!date) {
+      setError("Please select a date.")
+      return
+    }
+
+    if (editingEntryId) {
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === editingEntryId
+            ? {
+                ...entry,
+                description: description.trim(),
+                amount: parsedAmount,
+                type,
+                category,
+                date,
+                updatedAt: now,
+              }
+            : entry
+        )
+      )
+    } else {
+      const newEntry: Entry = {
+        id: generateId(),
+        description: description.trim(),
+        amount: parsedAmount,
+        type,
+        category,
+        date,
+        accountId: "main",
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      setEntries((prev) => [newEntry, ...prev])
+    }
+
+    // se estava editando um template e mudou pra one-time,
+    // precisa apagar o template antigo
+    if (editingTemplateId) {
+      setTemplates((prev) =>
+        prev.filter((template) => template.id !== editingTemplateId)
+      )
+    }
+
+    closeModal()
+    return
+  }
+
+  if (automationMode === "recurring") {
+    const parsedAmount = Number(amount)
+
+    if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError("Please enter a valid amount.")
+      return
+    }
+
+    if (!automationStartDate) {
+      setError("Please select a start date.")
+      return
+    }
+
+    const recurringTemplate: AutomationTemplate = {
+      id: editingTemplateId ?? generateId(),
+      description: description.trim(),
+      type,
+      category,
+      accountId: "main",
+      createdAt: now,
+      updatedAt: now,
+      automation: {
+        kind: "recurring",
+        amount: parsedAmount,
+        frequency: recurringFrequency,
+        startDate: automationStartDate,
+      },
+    }
+
+    if (editingTemplateId) {
+      setTemplates((prev) =>
+        prev.map((template) =>
+          template.id === editingTemplateId
+            ? { ...recurringTemplate, createdAt: template.createdAt }
+            : template
+        )
+      )
+    } else {
+      setTemplates((prev) => [recurringTemplate, ...prev])
+    }
+
+    // se estava editando uma entry manual e mudou pra recurring,
+    // precisa apagar a antiga
+    if (editingEntryId) {
+      setEntries((prev) =>
+        prev.filter((entry) => entry.id !== editingEntryId)
+      )
+    }
+
+    closeModal()
+    return
+  }
+
+  if (automationMode === "installment") {
+    const parsedTotal = Number(installmentTotalAmount)
+    const parsedCount = Number(installmentCount)
+
+    if (
+      !installmentTotalAmount ||
+      Number.isNaN(parsedTotal) ||
+      parsedTotal <= 0
+    ) {
+      setError("Please enter a valid total amount.")
+      return
+    }
+
+    if (!installmentCount || Number.isNaN(parsedCount) || parsedCount < 2) {
+      setError("Please enter a valid number of payments.")
+      return
+    }
+
+    if (!automationStartDate) {
+      setError("Please select a start date.")
+      return
+    }
+
+    const installmentTemplate: AutomationTemplate = {
+      id: editingTemplateId ?? generateId(),
+      description: description.trim(),
+      type,
+      category,
+      accountId: "main",
+      createdAt: now,
+      updatedAt: now,
+      automation: {
+        kind: "installment",
+        totalAmount: parsedTotal,
+        installmentCount: parsedCount,
+        frequency: installmentFrequency,
+        startDate: automationStartDate,
+      },
+    }
+
+    if (editingTemplateId) {
+      setTemplates((prev) =>
+        prev.map((template) =>
+          template.id === editingTemplateId
+            ? { ...installmentTemplate, createdAt: template.createdAt }
+            : template
+        )
+      )
+    } else {
+      setTemplates((prev) => [installmentTemplate, ...prev])
+    }
+
+    // se estava editando uma entry manual e mudou pra installment,
+    // precisa apagar a antiga
+    if (editingEntryId) {
+      setEntries((prev) =>
+        prev.filter((entry) => entry.id !== editingEntryId)
+      )
+    }
+
+    closeModal()
+  }
+}
 
   const handleDelete = () => {
     if (editingEntryId) {
