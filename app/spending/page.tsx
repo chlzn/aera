@@ -197,11 +197,8 @@ export default function Spending() {
 
   const periodEntries = useMemo<DisplayEntry[]>(() => {
     return [...manualPeriodEntries, ...generatedPeriodEntries].sort((a, b) => {
-      const dateDiff =
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
       if (dateDiff !== 0) return dateDiff
-
       return b.createdAt.localeCompare(a.createdAt)
     })
   }, [manualPeriodEntries, generatedPeriodEntries])
@@ -266,8 +263,7 @@ export default function Spending() {
     return ""
   }, [filter, categoryFilter])
 
-  const shouldShowFilteredTotal =
-    filter !== "all" || categoryFilter !== "all"
+  const shouldShowFilteredTotal = filter !== "all" || categoryFilter !== "all"
 
   const topCategories = useMemo(() => {
     const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
@@ -280,7 +276,7 @@ export default function Spending() {
     }, {})
 
     return Object.entries(totals)
-      .filter(([category]) => category !== "other")
+      .filter(([categoryName]) => categoryName !== "other")
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
   }, [periodEntries])
@@ -346,7 +342,14 @@ export default function Spending() {
       setType(entry.type)
       setCategory(entry.category)
       setDate(entry.date)
+
       setAutomationMode("one_time")
+      setRecurringFrequency("monthly")
+      setInstallmentFrequency("monthly")
+      setInstallmentTotalAmount("")
+      setInstallmentCount("2")
+      setAutomationStartDate(entry.date)
+
       setEditingEntryId(entry.id)
       setEditingTemplateId(null)
       setError("")
@@ -369,6 +372,7 @@ export default function Spending() {
       setAmount(String(template.automation.amount))
       setRecurringFrequency(template.automation.frequency)
       setAutomationStartDate(template.automation.startDate)
+      setDate(template.automation.startDate)
       setInstallmentTotalAmount("")
       setInstallmentCount("2")
     }
@@ -379,6 +383,7 @@ export default function Spending() {
       setInstallmentCount(String(template.automation.installmentCount))
       setInstallmentFrequency(template.automation.frequency)
       setAutomationStartDate(template.automation.startDate)
+      setDate(template.automation.startDate)
       setAmount("")
     }
 
@@ -391,186 +396,180 @@ export default function Spending() {
   }
 
   const handleSubmit = () => {
-  const now = new Date().toISOString()
+    const now = new Date().toISOString()
 
-  if (!description.trim()) {
-    setError("Please add a description.")
-    return
-  }
-
-  if (automationMode === "one_time") {
-    const parsedAmount = Number(amount)
-
-    if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError("Please enter a valid amount.")
+    if (!description.trim()) {
+      setError("Please add a description.")
       return
     }
 
-    if (!date) {
-      setError("Please select a date.")
-      return
-    }
+    if (automationMode === "one_time") {
+      const parsedAmount = Number(amount)
 
-    if (editingEntryId) {
-      setEntries((prev) =>
-        prev.map((entry) =>
-          entry.id === editingEntryId
-            ? {
-                ...entry,
-                description: description.trim(),
-                amount: parsedAmount,
-                type,
-                category,
-                date,
-                updatedAt: now,
-              }
-            : entry
+      if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        setError("Please enter a valid amount.")
+        return
+      }
+
+      if (!date) {
+        setError("Please select a date.")
+        return
+      }
+
+      if (editingEntryId) {
+        setEntries((prev) =>
+          prev.map((entry) =>
+            entry.id === editingEntryId
+              ? {
+                  ...entry,
+                  description: description.trim(),
+                  amount: parsedAmount,
+                  type,
+                  category,
+                  date,
+                  updatedAt: now,
+                }
+              : entry
+          )
         )
-      )
-    } else {
-      const newEntry: Entry = {
-        id: generateId(),
+      } else {
+        const newEntry: Entry = {
+          id: generateId(),
+          description: description.trim(),
+          amount: parsedAmount,
+          type,
+          category,
+          date,
+          accountId: "main",
+          createdAt: now,
+          updatedAt: now,
+        }
+
+        setEntries((prev) => [newEntry, ...prev])
+      }
+
+      if (editingTemplateId) {
+        setTemplates((prev) =>
+          prev.filter((template) => template.id !== editingTemplateId)
+        )
+      }
+
+      closeModal()
+      return
+    }
+
+    if (automationMode === "recurring") {
+      const parsedAmount = Number(amount)
+
+      if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        setError("Please enter a valid amount.")
+        return
+      }
+
+      if (!automationStartDate) {
+        setError("Please select a start date.")
+        return
+      }
+
+      const recurringTemplate: AutomationTemplate = {
+        id: editingTemplateId ?? generateId(),
         description: description.trim(),
-        amount: parsedAmount,
         type,
         category,
-        date,
         accountId: "main",
         createdAt: now,
         updatedAt: now,
+        automation: {
+          kind: "recurring",
+          amount: parsedAmount,
+          frequency: recurringFrequency,
+          startDate: automationStartDate,
+        },
       }
 
-      setEntries((prev) => [newEntry, ...prev])
-    }
-
-    // se estava editando um template e mudou pra one-time,
-    // precisa apagar o template antigo
-    if (editingTemplateId) {
-      setTemplates((prev) =>
-        prev.filter((template) => template.id !== editingTemplateId)
-      )
-    }
-
-    closeModal()
-    return
-  }
-
-  if (automationMode === "recurring") {
-    const parsedAmount = Number(amount)
-
-    if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError("Please enter a valid amount.")
-      return
-    }
-
-    if (!automationStartDate) {
-      setError("Please select a start date.")
-      return
-    }
-
-    const recurringTemplate: AutomationTemplate = {
-      id: editingTemplateId ?? generateId(),
-      description: description.trim(),
-      type,
-      category,
-      accountId: "main",
-      createdAt: now,
-      updatedAt: now,
-      automation: {
-        kind: "recurring",
-        amount: parsedAmount,
-        frequency: recurringFrequency,
-        startDate: automationStartDate,
-      },
-    }
-
-    if (editingTemplateId) {
-      setTemplates((prev) =>
-        prev.map((template) =>
-          template.id === editingTemplateId
-            ? { ...recurringTemplate, createdAt: template.createdAt }
-            : template
+      if (editingTemplateId) {
+        setTemplates((prev) =>
+          prev.map((template) =>
+            template.id === editingTemplateId
+              ? { ...recurringTemplate, createdAt: template.createdAt }
+              : template
+          )
         )
-      )
-    } else {
-      setTemplates((prev) => [recurringTemplate, ...prev])
-    }
+      } else {
+        setTemplates((prev) => [recurringTemplate, ...prev])
+      }
 
-    // se estava editando uma entry manual e mudou pra recurring,
-    // precisa apagar a antiga
-    if (editingEntryId) {
-      setEntries((prev) =>
-        prev.filter((entry) => entry.id !== editingEntryId)
-      )
-    }
-
-    closeModal()
-    return
-  }
-
-  if (automationMode === "installment") {
-    const parsedTotal = Number(installmentTotalAmount)
-    const parsedCount = Number(installmentCount)
-
-    if (
-      !installmentTotalAmount ||
-      Number.isNaN(parsedTotal) ||
-      parsedTotal <= 0
-    ) {
-      setError("Please enter a valid total amount.")
-      return
-    }
-
-    if (!installmentCount || Number.isNaN(parsedCount) || parsedCount < 2) {
-      setError("Please enter a valid number of payments.")
-      return
-    }
-
-    if (!automationStartDate) {
-      setError("Please select a start date.")
-      return
-    }
-
-    const installmentTemplate: AutomationTemplate = {
-      id: editingTemplateId ?? generateId(),
-      description: description.trim(),
-      type,
-      category,
-      accountId: "main",
-      createdAt: now,
-      updatedAt: now,
-      automation: {
-        kind: "installment",
-        totalAmount: parsedTotal,
-        installmentCount: parsedCount,
-        frequency: installmentFrequency,
-        startDate: automationStartDate,
-      },
-    }
-
-    if (editingTemplateId) {
-      setTemplates((prev) =>
-        prev.map((template) =>
-          template.id === editingTemplateId
-            ? { ...installmentTemplate, createdAt: template.createdAt }
-            : template
+      if (editingEntryId) {
+        setEntries((prev) =>
+          prev.filter((entry) => entry.id !== editingEntryId)
         )
-      )
-    } else {
-      setTemplates((prev) => [installmentTemplate, ...prev])
+      }
+
+      closeModal()
+      return
     }
 
-    // se estava editando uma entry manual e mudou pra installment,
-    // precisa apagar a antiga
-    if (editingEntryId) {
-      setEntries((prev) =>
-        prev.filter((entry) => entry.id !== editingEntryId)
-      )
-    }
+    if (automationMode === "installment") {
+      const parsedTotal = Number(installmentTotalAmount)
+      const parsedCount = Number(installmentCount)
 
-    closeModal()
+      if (
+        !installmentTotalAmount ||
+        Number.isNaN(parsedTotal) ||
+        parsedTotal <= 0
+      ) {
+        setError("Please enter a valid total amount.")
+        return
+      }
+
+      if (!installmentCount || Number.isNaN(parsedCount) || parsedCount < 2) {
+        setError("Please enter a valid number of payments.")
+        return
+      }
+
+      if (!automationStartDate) {
+        setError("Please select a start date.")
+        return
+      }
+
+      const installmentTemplate: AutomationTemplate = {
+        id: editingTemplateId ?? generateId(),
+        description: description.trim(),
+        type,
+        category,
+        accountId: "main",
+        createdAt: now,
+        updatedAt: now,
+        automation: {
+          kind: "installment",
+          totalAmount: parsedTotal,
+          installmentCount: parsedCount,
+          frequency: installmentFrequency,
+          startDate: automationStartDate,
+        },
+      }
+
+      if (editingTemplateId) {
+        setTemplates((prev) =>
+          prev.map((template) =>
+            template.id === editingTemplateId
+              ? { ...installmentTemplate, createdAt: template.createdAt }
+              : template
+          )
+        )
+      } else {
+        setTemplates((prev) => [installmentTemplate, ...prev])
+      }
+
+      if (editingEntryId) {
+        setEntries((prev) =>
+          prev.filter((entry) => entry.id !== editingEntryId)
+        )
+      }
+
+      closeModal()
+    }
   }
-}
 
   const handleDelete = () => {
     if (editingEntryId) {
@@ -844,12 +843,10 @@ export default function Spending() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <p className="text-zinc-400 text-sm">
-                  {editingEntryId
-                    ? "Edit Transaction"
-                    : editingTemplateId
-                    ? "Edit Automation"
-                    : "New Transaction"}
+                <p className="text-white text-sm font-medium">
+                  {editingEntryId || editingTemplateId
+                    ? "Edit transaction"
+                    : "New transaction"}
                 </p>
 
                 <button
@@ -861,12 +858,12 @@ export default function Spending() {
                 </button>
               </div>
 
-              <div className="grid gap-3">
-                <div className="flex gap-2">
+              <div className="grid gap-4">
+                <div className="flex gap-2 mt-1">
                   <button
                     type="button"
                     onClick={() => setType("expense")}
-                    className={`flex-1 rounded-full h-[50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
+                    className={`flex-1 rounded-full h-[44px] text-sm border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                       type === "expense"
                         ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -878,7 +875,7 @@ export default function Spending() {
                   <button
                     type="button"
                     onClick={() => setType("income")}
-                    className={`flex-1 rounded-full h-[50px] border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
+                    className={`flex-1 rounded-full h-[44px] text-sm border cursor-pointer touch-manipulation transition-all duration-200 ease-out active:scale-[0.98] ${
                       type === "income"
                         ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -912,15 +909,17 @@ export default function Spending() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-xs text-zinc-500 mb-2 block">
-                    Automation
-                  </label>
+                <div className="mt-2">
+                  <p className="text-xs text-zinc-500 mb-2">Automation</p>
+                  <p className="text-[11px] text-zinc-600 mb-3">
+                    Choose how this transaction should behave.
+                  </p>
+
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setAutomationMode("one_time")}
-                      className={`rounded-full h-[44px] border text-sm transition-all duration-200 ease-out active:scale-[0.98] ${
+                      className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
                         automationMode === "one_time"
                           ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -932,7 +931,7 @@ export default function Spending() {
                     <button
                       type="button"
                       onClick={() => setAutomationMode("installment")}
-                      className={`rounded-full h-[44px] border text-sm transition-all duration-200 ease-out active:scale-[0.98] ${
+                      className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
                         automationMode === "installment"
                           ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -944,7 +943,7 @@ export default function Spending() {
                     <button
                       type="button"
                       onClick={() => setAutomationMode("recurring")}
-                      className={`rounded-full h-[44px] border text-sm transition-all duration-200 ease-out active:scale-[0.98] ${
+                      className={`rounded-full h-[44px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
                         automationMode === "recurring"
                           ? "bg-[var(--accent)] text-black border-[var(--accent)]"
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
@@ -956,7 +955,7 @@ export default function Spending() {
                 </div>
 
                 {automationMode === "one_time" && (
-                  <>
+                  <div className="mt-2 space-y-3">
                     <input
                       placeholder="Amount"
                       type="number"
@@ -973,11 +972,11 @@ export default function Spending() {
                       onChange={(e) => setDate(e.target.value)}
                       className={fieldClass}
                     />
-                  </>
+                  </div>
                 )}
 
                 {automationMode === "recurring" && (
-                  <>
+                  <div className="mt-2 space-y-3">
                     <input
                       placeholder="Amount"
                       type="number"
@@ -1012,11 +1011,11 @@ export default function Spending() {
                       onChange={(e) => setAutomationStartDate(e.target.value)}
                       className={fieldClass}
                     />
-                  </>
+                  </div>
                 )}
 
                 {automationMode === "installment" && (
-                  <>
+                  <div className="mt-2 space-y-3">
                     <input
                       placeholder="Total amount"
                       type="number"
@@ -1061,7 +1060,7 @@ export default function Spending() {
                       onChange={(e) => setAutomationStartDate(e.target.value)}
                       className={fieldClass}
                     />
-                  </>
+                  </div>
                 )}
 
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
