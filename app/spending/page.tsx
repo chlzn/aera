@@ -162,6 +162,9 @@ export default function Spending() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
   const [isScheduledOpen, setIsScheduledOpen] = useState(true)
+  const [expandedCategory, setExpandedCategory] = useState<EntryCategory | null>(
+  null
+)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -352,6 +355,41 @@ export default function Spending() {
       .slice(0, 3)
   }, [periodEntries])
 
+  const spendingGroups = useMemo(() => {
+  const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
+
+  const totals = expenseEntries.reduce<
+    Record<
+      EntryCategory,
+      {
+        total: number
+        entries: DisplayEntry[]
+      }
+    >
+  >((acc, entry) => {
+    if (!acc[entry.category]) {
+      acc[entry.category] = {
+        total: 0,
+        entries: [],
+      }
+    }
+
+    acc[entry.category].total += entry.amount
+    acc[entry.category].entries.push(entry)
+
+    return acc
+  }, {} as Record<EntryCategory, { total: number; entries: DisplayEntry[] }>)
+
+  return Object.entries(totals)
+    .map(([categoryName, data]) => ({
+      category: categoryName as EntryCategory,
+      total: data.total,
+      entries: data.entries.sort((a, b) => b.date.localeCompare(a.date)),
+    }))
+    .filter((group) => group.category !== "other")
+    .sort((a, b) => b.total - a.total)
+}, [periodEntries])
+
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0 && scheduledEntries.length > 0) {
       return "You have scheduled payments, but nothing confirmed yet this month."
@@ -460,6 +498,14 @@ export default function Spending() {
     resetForm()
     setIsModalOpen(true)
   }
+
+  const openCreateModalForCategory = (selectedCategory: EntryCategory) => {
+  resetForm()
+  setType("expense")
+  setCategory(selectedCategory)
+  setAutomationMode("one_time")
+  setIsModalOpen(true)
+}
 
   const openEditModal = (entry: DisplayEntry) => {
     if (entry.source === "manual") {
@@ -834,6 +880,116 @@ export default function Spending() {
               </div>
             </section>
           )}
+
+          {spendingGroups.length > 0 && (
+  <section className="mb-10">
+    <div className="mb-4">
+      <p className="text-white text-sm font-medium">Spending groups</p>
+      <p className="text-zinc-600 text-xs mt-1">
+        See where your money went this month.
+      </p>
+    </div>
+
+    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+      {spendingGroups.map((group, index) => {
+        const isExpanded = expandedCategory === group.category
+
+        return (
+          <div
+            key={group.category}
+            className={
+              index !== spendingGroups.length - 1
+                ? "border-b border-white/5"
+                : ""
+            }
+          >
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedCategory((prev) =>
+                  prev === group.category ? null : group.category
+                )
+              }
+              className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+            >
+              <div className="min-w-0">
+                <p className="text-zinc-200 font-medium">
+                  {formatCategory(group.category)}
+                </p>
+
+                {!isExpanded && (
+                  <p className="text-xs text-zinc-600 mt-1">
+                    {group.entries.length} transaction
+                    {group.entries.length === 1 ? "" : "s"}
+                  </p>
+                )}
+              </div>
+
+              {!isExpanded && (
+                <div className="text-right shrink-0">
+                  <p className="text-zinc-300 text-sm font-medium">
+                    {formatCurrency(group.total, currency)}
+                  </p>
+                </div>
+              )}
+
+              <span className="text-[var(--accent)] text-lg">
+                {isExpanded ? "⌃" : "⌄"}
+              </span>
+            </button>
+
+            {isExpanded && (
+              <div className="px-5 pb-5">
+                <div className="mb-4">
+                  <p className="text-zinc-500 text-xs">Total this month</p>
+                  <p className="text-white text-lg font-medium mt-1">
+                    {formatCurrency(group.total, currency)}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] bg-zinc-950/30 border border-white/5 overflow-hidden">
+                  {group.entries.map((entry, entryIndex) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => openEditModal(entry)}
+                      className={`w-full flex items-center justify-between gap-4 px-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] ${
+                        entryIndex !== group.entries.length - 1
+                          ? "border-b border-white/5"
+                          : ""
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-zinc-200 text-sm truncate">
+                          {entry.description}
+                        </p>
+                        <p className="text-xs text-zinc-600 mt-1">
+                          {formatDate(entry.date)}
+                        </p>
+                      </div>
+
+                      <span className="text-red-500 text-sm font-medium shrink-0">
+                        -{formatCurrency(entry.amount, currency)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openCreateModalForCategory(group.category)}
+                  className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
+                >
+                  + Add {formatCategory(group.category).toLowerCase()} expense
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  </section>
+)}
 
           {scheduledEntries.length > 0 && (
             <section className="mb-10">
