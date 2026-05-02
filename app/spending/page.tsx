@@ -12,6 +12,7 @@ import {
   type AutomationTemplate,
   type EntryCategory,
   type EntryType,
+  type PaymentBehavior,
   generateEntriesForPeriod,
 } from "@/lib/spending-automation"
 
@@ -32,6 +33,7 @@ type DisplayEntry = Entry & {
   templateId?: string
   automationKind?: "recurring" | "installment"
   automationLabel?: string
+  paymentBehavior?: PaymentBehavior
 }
 
 const incomeCategories: { value: EntryCategory; label: string }[] = [
@@ -116,11 +118,16 @@ function formatInstallmentFrequencyLabel(
   return "every 2 weeks"
 }
 
+function isDue(date: string) {
+  return date <= getTodayDate()
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
+  const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
   const [entriesHydrated, setEntriesHydrated] = useState(false)
 
   const [description, setDescription] = useState("")
@@ -132,9 +139,11 @@ export default function Spending() {
   const [automationMode, setAutomationMode] = useState<
     "one_time" | "installment" | "recurring"
   >("one_time")
-  const [recurringFrequency, setRecurringFrequency] = useState<"monthly" | "weekly">(
-    "monthly"
-  )
+  const [paymentBehavior, setPaymentBehavior] =
+    useState<PaymentBehavior>("manual")
+  const [recurringFrequency, setRecurringFrequency] = useState<
+    "monthly" | "weekly"
+  >("monthly")
   const [installmentFrequency, setInstallmentFrequency] = useState<
     "monthly" | "weekly" | "biweekly"
   >("monthly")
@@ -145,17 +154,21 @@ export default function Spending() {
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | EntryType>("all")
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
-  const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>("all")
+  const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>(
+    "all"
+  )
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
+  const [isScheduledOpen, setIsScheduledOpen] = useState(true)
   const [error, setError] = useState("")
 
   useEffect(() => {
     try {
       const savedEntries = localStorage.getItem("entries")
       const savedTemplates = localStorage.getItem("automationTemplates")
+      const savedPaidScheduledIds = localStorage.getItem("paidScheduledPayments")
 
       if (savedEntries) {
         const parsedEntries = JSON.parse(savedEntries)
@@ -166,9 +179,17 @@ export default function Spending() {
         const parsedTemplates = JSON.parse(savedTemplates)
         setTemplates(Array.isArray(parsedTemplates) ? parsedTemplates : [])
       }
+
+      if (savedPaidScheduledIds) {
+        const parsedPaidScheduledIds = JSON.parse(savedPaidScheduledIds)
+        setPaidScheduledIds(
+          Array.isArray(parsedPaidScheduledIds) ? parsedPaidScheduledIds : []
+        )
+      }
     } catch {
       setEntries([])
       setTemplates([])
+      setPaidScheduledIds([])
     } finally {
       setEntriesHydrated(true)
     }
@@ -180,10 +201,14 @@ export default function Spending() {
     try {
       localStorage.setItem("entries", JSON.stringify(entries))
       localStorage.setItem("automationTemplates", JSON.stringify(templates))
+      localStorage.setItem(
+        "paidScheduledPayments",
+        JSON.stringify(paidScheduledIds)
+      )
     } catch {
       // silent
     }
-  }, [entries, templates, entriesHydrated])
+  }, [entries, templates, paidScheduledIds, entriesHydrated])
 
   useEffect(() => {
     const defaultCategory =
@@ -215,13 +240,37 @@ export default function Spending() {
     }))
   }, [templates, selectedPeriod])
 
+  const confirmedGeneratedEntries = useMemo(() => {
+    return generatedPeriodEntries.filter((entry) => {
+      const behavior = entry.paymentBehavior || "manual"
+
+      if (behavior === "auto_paid") {
+        return isDue(entry.date)
+      }
+
+      return paidScheduledIds.includes(entry.id)
+    })
+  }, [generatedPeriodEntries, paidScheduledIds])
+
+  const scheduledEntries = useMemo(() => {
+    return generatedPeriodEntries.filter((entry) => {
+      const behavior = entry.paymentBehavior || "manual"
+
+      if (behavior === "auto_paid") {
+        return !isDue(entry.date)
+      }
+
+      return !paidScheduledIds.includes(entry.id)
+    })
+  }, [generatedPeriodEntries, paidScheduledIds])
+
   const periodEntries = useMemo<DisplayEntry[]>(() => {
-  return [...manualPeriodEntries, ...generatedPeriodEntries].sort((a, b) => {
-    const dateDiff = b.date.localeCompare(a.date)
-    if (dateDiff !== 0) return dateDiff
-    return b.createdAt.localeCompare(a.createdAt)
-  })
-}, [manualPeriodEntries, generatedPeriodEntries])
+    return [...manualPeriodEntries, ...confirmedGeneratedEntries].sort((a, b) => {
+      const dateDiff = b.date.localeCompare(a.date)
+      if (dateDiff !== 0) return dateDiff
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+  }, [manualPeriodEntries, confirmedGeneratedEntries])
 
   const income = periodEntries
     .filter((entry) => entry.type === "income")
@@ -286,7 +335,9 @@ export default function Spending() {
   const shouldShowFilteredTotal = filter !== "all" || categoryFilter !== "all"
 
   const topCategories = useMemo(() => {
-    const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
+    const expenseEntries = periodEntries.filter(
+      (entry) => entry.type === "expense"
+    )
 
     if (expenseEntries.length === 0) return []
 
@@ -302,6 +353,10 @@ export default function Spending() {
   }, [periodEntries])
 
   const spendingInsight = useMemo(() => {
+    if (periodEntries.length === 0 && scheduledEntries.length > 0) {
+      return "You have scheduled payments, but nothing confirmed yet this month."
+    }
+
     if (periodEntries.length === 0) {
       return "No data yet — start tracking to understand your monthly flow."
     }
@@ -329,7 +384,7 @@ export default function Spending() {
     }
 
     return "You’re spending more than you earn this month."
-  }, [periodEntries.length, income, expenses])
+  }, [periodEntries.length, scheduledEntries.length, income, expenses])
 
   const installmentPreview = useMemo(() => {
     const parsedTotal = Number(installmentTotalAmount)
@@ -351,8 +406,16 @@ export default function Spending() {
     return `${formatCurrency(parsedTotal, currency)} total → ${formatCurrency(
       perPayment,
       currency
-    )} ${formatInstallmentFrequencyLabel(installmentFrequency)} · ${parsedCount} payments`
-  }, [automationMode, installmentTotalAmount, installmentCount, installmentFrequency, currency])
+    )} ${formatInstallmentFrequencyLabel(
+      installmentFrequency
+    )} · ${parsedCount} payments`
+  }, [
+    automationMode,
+    installmentTotalAmount,
+    installmentCount,
+    installmentFrequency,
+    currency,
+  ])
 
   const recurringPreview = useMemo(() => {
     const parsedAmount = Number(amount)
@@ -381,6 +444,7 @@ export default function Spending() {
     setDate(getTodayDate())
 
     setAutomationMode("one_time")
+    setPaymentBehavior("manual")
     setRecurringFrequency("monthly")
     setInstallmentFrequency("monthly")
     setInstallmentTotalAmount("")
@@ -406,6 +470,7 @@ export default function Spending() {
       setDate(entry.date)
 
       setAutomationMode("one_time")
+      setPaymentBehavior("manual")
       setRecurringFrequency("monthly")
       setInstallmentFrequency("monthly")
       setInstallmentTotalAmount("")
@@ -425,6 +490,7 @@ export default function Spending() {
     setDescription(template.description)
     setType(template.type)
     setCategory(template.category)
+    setPaymentBehavior(template.automation.paymentBehavior || "manual")
     setEditingEntryId(null)
     setEditingTemplateId(template.id)
     setError("")
@@ -455,6 +521,13 @@ export default function Spending() {
   const closeModal = () => {
     setIsModalOpen(false)
     resetForm()
+  }
+
+  const markScheduledAsPaid = (entry: DisplayEntry) => {
+    setPaidScheduledIds((prev) => {
+      if (prev.includes(entry.id)) return prev
+      return [...prev, entry.id]
+    })
   }
 
   const handleSubmit = () => {
@@ -546,6 +619,7 @@ export default function Spending() {
           amount: parsedAmount,
           frequency: recurringFrequency,
           startDate: automationStartDate,
+          paymentBehavior,
         },
       }
 
@@ -609,6 +683,7 @@ export default function Spending() {
           installmentCount: parsedCount,
           frequency: installmentFrequency,
           startDate: automationStartDate,
+          paymentBehavior,
         },
       }
 
@@ -760,13 +835,89 @@ export default function Spending() {
             </section>
           )}
 
+          {scheduledEntries.length > 0 && (
+            <section className="mb-10">
+              <button
+                type="button"
+                onClick={() => setIsScheduledOpen((prev) => !prev)}
+                className="w-full flex items-center justify-between mb-4 text-left"
+              >
+                <p className="text-white text-sm font-medium">
+                  Scheduled payments
+                </p>
+                <span className="text-[var(--accent)] text-lg">
+                  {isScheduledOpen ? "⌃" : "⌄"}
+                </span>
+              </button>
+
+              {isScheduledOpen && (
+                <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                  {scheduledEntries.map((entry, index) => {
+                    const behavior = entry.paymentBehavior || "manual"
+                    const isManual = behavior === "manual"
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`flex items-center justify-between gap-4 px-5 py-4 ${
+                          index !== scheduledEntries.length - 1
+                            ? "border-b border-white/5"
+                            : ""
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(entry)}
+                          className="min-w-0 text-left flex-1"
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-zinc-200 truncate">
+                              {entry.description}
+                            </p>
+                            {entry.automationLabel && (
+                              <span className="text-xs text-zinc-500">
+                                {entry.automationLabel}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-zinc-600 mt-1">
+                            {formatCurrency(entry.amount, currency)} · Expected{" "}
+                            {formatDate(entry.date)} ·{" "}
+                            {isManual ? "Manual" : "Auto-paid"}
+                          </p>
+                        </button>
+
+                        {isManual ? (
+                          <button
+                            type="button"
+                            onClick={() => markScheduledAsPaid(entry)}
+                            className="shrink-0 rounded-full border border-[var(--accent)]/20 bg-[var(--accent)]/[0.08] text-[var(--accent)] px-3 py-2 text-xs font-medium transition-all duration-200 ease-out active:scale-[0.98]"
+                          >
+                            Mark paid
+                          </button>
+                        ) : (
+                          <span className="shrink-0 text-xs text-zinc-600">
+                            Upcoming
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
           <section className="mb-24">
             <button
               type="button"
               onClick={() => setIsHistoryOpen((prev) => !prev)}
               className="w-full flex items-center justify-between mb-4 text-left"
             >
-              <p className="text-white text-sm font-medium">Transaction history</p>
+              <p className="text-white text-sm font-medium">
+                Transaction history
+              </p>
               <span className="text-[var(--accent)] text-lg">
                 {isHistoryOpen ? "⌃" : "⌄"}
               </span>
@@ -788,7 +939,9 @@ export default function Spending() {
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <select
                       value={filter}
-                      onChange={(e) => setFilter(e.target.value as "all" | EntryType)}
+                      onChange={(e) =>
+                        setFilter(e.target.value as "all" | EntryType)
+                      }
                       className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
                     >
                       <option value="all">All types</option>
@@ -832,10 +985,10 @@ export default function Spending() {
                 {filteredEntries.length === 0 ? (
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
                     <p className="text-zinc-300 text-sm">
-                      No transactions in this period.
+                      No confirmed transactions in this period.
                     </p>
                     <p className="text-zinc-600 text-sm mt-1">
-                      Select another month or add a new transaction.
+                      Scheduled payments will appear here once paid.
                     </p>
                   </div>
                 ) : (
@@ -1006,6 +1159,34 @@ export default function Spending() {
                   </button>
                 </div>
 
+                {automationMode !== "one_time" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentBehavior("manual")}
+                      className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
+                        paymentBehavior === "manual"
+                          ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                          : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                      }`}
+                    >
+                      Manual
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentBehavior("auto_paid")}
+                      className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
+                        paymentBehavior === "auto_paid"
+                          ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                          : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                      }`}
+                    >
+                      Auto-paid
+                    </button>
+                  </div>
+                )}
+
                 {automationMode === "one_time" && (
                   <div className="mt-2 space-y-3">
                     <input
@@ -1135,7 +1316,9 @@ export default function Spending() {
                   onClick={handleSubmit}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
-                  Add transaction
+                  {editingEntryId || editingTemplateId
+                    ? "Save transaction"
+                    : "Add transaction"}
                 </button>
 
                 {(editingEntryId || editingTemplateId) && (
