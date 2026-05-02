@@ -182,6 +182,39 @@ function getCategorySortIndex(category: EntryCategory, order: EntryCategory[]) {
   return index === -1 ? 999 : index
 }
 
+function getEndOfPeriodDate(periodKey: string) {
+  const [year, month] = periodKey.split("-").map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(
+    2,
+    "0"
+  )}`
+}
+
+function getPeriodRange(startPeriod: string, endPeriod: string) {
+  const [startYear, startMonth] = startPeriod.split("-").map(Number)
+  const [endYear, endMonth] = endPeriod.split("-").map(Number)
+
+  const periods: string[] = []
+
+  let year = startYear
+  let month = startMonth
+
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    periods.push(`${year}-${String(month).padStart(2, "0")}`)
+
+    month += 1
+
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+
+  return periods
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
 
@@ -326,6 +359,86 @@ export default function Spending() {
         source: "manual" as const,
       }))
   }, [entries, selectedPeriod])
+
+  const earliestPeriod = useMemo(() => {
+  const periods: string[] = []
+
+  entries.forEach((entry) => {
+    if (entry.date) periods.push(entry.date.slice(0, 7))
+  })
+
+  templates.forEach((template) => {
+    if (template.automation.startDate) {
+      periods.push(template.automation.startDate.slice(0, 7))
+    }
+  })
+
+  if (periods.length === 0) return selectedPeriod
+
+  return periods.sort()[0]
+}, [entries, templates, selectedPeriod])
+
+const cumulativePeriodKeys = useMemo(() => {
+  return getPeriodRange(earliestPeriod, selectedPeriod)
+}, [earliestPeriod, selectedPeriod])
+
+const cumulativeGeneratedEntries = useMemo<DisplayEntry[]>(() => {
+  return cumulativePeriodKeys.flatMap((period) =>
+    generateEntriesForPeriod(templates, period).map((entry) => ({
+      ...entry,
+      source: "automation" as const,
+    }))
+  )
+}, [templates, cumulativePeriodKeys])
+
+const selectedPeriodCutoffDate = useMemo(() => {
+  const currentPeriod = getCurrentPeriodKey()
+
+  if (selectedPeriod === currentPeriod) {
+    return getTodayDate()
+  }
+
+  return getEndOfPeriodDate(selectedPeriod)
+}, [selectedPeriod])
+
+const cumulativeManualEntries = useMemo<DisplayEntry[]>(() => {
+  return entries
+    .filter((entry) => entry.date <= selectedPeriodCutoffDate)
+    .map((entry) => ({
+      ...entry,
+      source: "manual" as const,
+    }))
+}, [entries, selectedPeriodCutoffDate])
+
+const cumulativeConfirmedGeneratedEntries = useMemo(() => {
+  return cumulativeGeneratedEntries.filter((entry) => {
+    if (entry.date > selectedPeriodCutoffDate) return false
+
+    const behavior = entry.paymentBehavior || "manual"
+
+    if (behavior === "auto_paid") {
+      return isDue(entry.date)
+    }
+
+    return paidScheduledIds.includes(entry.id)
+  })
+}, [cumulativeGeneratedEntries, paidScheduledIds, selectedPeriodCutoffDate])
+
+const cumulativeEntries = useMemo(() => {
+  return [...cumulativeManualEntries, ...cumulativeConfirmedGeneratedEntries]
+}, [cumulativeManualEntries, cumulativeConfirmedGeneratedEntries])
+
+const cashBalance = useMemo(() => {
+  const totalIncome = cumulativeEntries
+    .filter((entry) => entry.type === "income")
+    .reduce((sum, entry) => sum + entry.amount, 0)
+
+  const totalExpenses = cumulativeEntries
+    .filter((entry) => entry.type === "expense")
+    .reduce((sum, entry) => sum + entry.amount, 0)
+
+  return totalIncome - totalExpenses
+}, [cumulativeEntries])
 
   const generatedPeriodEntries = useMemo<DisplayEntry[]>(() => {
     return generateEntriesForPeriod(templates, selectedPeriod).map((entry) => ({
@@ -938,24 +1051,36 @@ export default function Spending() {
 
           <section className="mb-6">
             <p className="text-5xl font-semibold tracking-tight text-white">
-              {formatCurrency(net, currency)}
+              {formatCurrency(cashBalance, currency)}
             </p>
 
             <div className="mt-4 flex gap-7 flex-wrap text-sm">
-              <div className="flex flex-col">
-                <span className="text-zinc-500">Income</span>
-                <span className="text-white font-medium">
-                  {formatCurrency(income, currency)}
-                </span>
-              </div>
+  <div className="flex flex-col">
+    <span className="text-zinc-500">Income</span>
+    <span className="text-white font-medium">
+      {formatCurrency(income, currency)}
+    </span>
+  </div>
 
-              <div className="flex flex-col">
-                <span className="text-zinc-500">Expenses</span>
-                <span className="text-white font-medium">
-                  {formatCurrency(expenses, currency)}
-                </span>
-              </div>
-            </div>
+  <div className="flex flex-col">
+    <span className="text-zinc-500">Expenses</span>
+    <span className="text-white font-medium">
+      {formatCurrency(expenses, currency)}
+    </span>
+  </div>
+
+  <div className="flex flex-col">
+    <span className="text-zinc-500">This month</span>
+    <span
+      className={`font-medium ${
+        net >= 0 ? "text-green-500" : "text-red-500"
+      }`}
+    >
+      {net >= 0 ? "+" : ""}
+      {formatCurrency(net, currency)}
+    </span>
+  </div>
+</div>
 
             <p className="text-sm text-zinc-400 leading-relaxed mt-5">
               {spendingInsight}
