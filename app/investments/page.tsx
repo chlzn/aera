@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { History, LayoutGrid, Plus, Wallet } from "lucide-react"
+import { History, Layers, LayoutGrid, Plus } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -620,7 +620,7 @@ export default function Portfolio() {
     icon: typeof LayoutGrid
   }[] = [
     { value: "overview", label: "Overview", icon: LayoutGrid },
-    { value: "holdings", label: "Holdings", icon: Wallet },
+    { value: "holdings", label: "Holdings", icon: Layers },
     { value: "activity", label: "Activity", icon: History },
     { value: "add", label: "Add", icon: Plus },
   ]
@@ -636,13 +636,13 @@ export default function Portfolio() {
             </p>
           </header>
 
-          <section className="mb-5">
+          <section className="mb-4">
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(totals.currentTotal, currency)}
             </p>
           </section>
 
-          <nav className="mb-6">
+          <nav className="mb-5">
             <div className="grid grid-cols-4 gap-2">
               {quickActions.map((item) => {
                 const Icon = item.icon
@@ -736,28 +736,26 @@ export default function Portfolio() {
                       </p>
                     </div>
 
-                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5 grid gap-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-zinc-500 text-sm">Holdings</span>
-                        <span className="text-white text-sm font-medium">
+                    <div className="grid gap-2 text-sm">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-zinc-500">Holdings</span>
+                        <span className="text-white font-medium">
                           {holdings.length}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-zinc-500 text-sm">Invested</span>
-                        <span className="text-white text-sm font-medium">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-zinc-500">Invested</span>
+                        <span className="text-white font-medium">
                           {formatCurrency(totals.investedTotal, currency)}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-zinc-500 text-sm">
-                          Top allocation
-                        </span>
-                        <span className="text-white text-sm font-medium text-right">
+                        <span className="text-zinc-500">Largest</span>
+                        <span className="text-white font-medium text-right">
                           {topAllocation
-                            ? `${topAllocation.label} · ${topAllocation.allocationPct.toFixed(0)}%`
+                            ? `${topAllocation.label} (${topAllocation.allocationPct.toFixed(0)}%)`
                             : "None"}
                         </span>
                       </div>
@@ -778,114 +776,120 @@ export default function Portfolio() {
                   </p>
                 </div>
               ) : (
-                <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                  {groups.map((group, groupIndex) => {
-                    const isExpanded = expandedGroup === group.type
+                <>
+                  <p className="text-zinc-600 text-xs mb-3">
+                    Total Holdings · {holdings.length}
+                  </p>
 
-                    return (
-                      <div
-                        key={group.type}
-                        className={
-                          groupIndex !== groups.length - 1
-                            ? "border-b border-white/5"
-                            : ""
-                        }
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedGroup((prev) =>
-                              prev === group.type ? null : group.type
-                            )
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    {groups.map((group, groupIndex) => {
+                      const isExpanded = expandedGroup === group.type
+
+                      return (
+                        <div
+                          key={group.type}
+                          className={
+                            groupIndex !== groups.length - 1
+                              ? "border-b border-white/5"
+                              : ""
                           }
-                          className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
                         >
-                          <div className="min-w-0">
-                            <p className="text-zinc-200 font-medium">
-                              {group.label}
-                            </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedGroup((prev) =>
+                                prev === group.type ? null : group.type
+                              )
+                            }
+                            className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-zinc-200 font-medium">
+                                {group.label}
+                              </p>
+
+                              {!isExpanded && (
+                                <p className="text-xs text-zinc-600 mt-1">
+                                  {group.holdings.length} holding
+                                  {group.holdings.length === 1 ? "" : "s"}
+                                </p>
+                              )}
+                            </div>
 
                             {!isExpanded && (
-                              <p className="text-xs text-zinc-600 mt-1">
-                                {group.holdings.length} holding
-                                {group.holdings.length === 1 ? "" : "s"}
-                              </p>
+                              <div className="text-right shrink-0">
+                                <p className="text-zinc-300 text-sm font-medium">
+                                  {formatCurrency(group.currentValue, currency)}
+                                </p>
+                                <p
+                                  className={`text-xs mt-1 ${
+                                    group.profitPct >= 0
+                                      ? "text-green-500"
+                                      : "text-red-500"
+                                  }`}
+                                >
+                                  {group.profitPct >= 0 ? "+" : ""}
+                                  {group.profitPct.toFixed(1)}%
+                                </p>
+                              </div>
                             )}
-                          </div>
 
-                          {!isExpanded && (
-                            <div className="text-right shrink-0">
-                              <p className="text-zinc-300 text-sm font-medium">
-                                {formatCurrency(group.currentValue, currency)}
-                              </p>
-                              <p
-                                className={`text-xs mt-1 ${
-                                  group.profitPct >= 0
-                                    ? "text-green-500"
-                                    : "text-red-500"
-                                }`}
-                              >
-                                {group.profitPct >= 0 ? "+" : ""}
-                                {group.profitPct.toFixed(1)}%
-                              </p>
+                            <span className="text-zinc-500 text-lg">
+                              {isExpanded ? "⌃" : "⌄"}
+                            </span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="px-5 pb-5">
+                              <div className="space-y-1">
+                                {group.holdings.map((holding) => (
+                                  <button
+                                    key={holding.key}
+                                    type="button"
+                                    onClick={() => openHoldingDetail(holding)}
+                                    className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-zinc-200 truncate">
+                                        {holding.name}
+                                      </p>
+                                    </div>
+
+                                    <div className="text-right shrink-0">
+                                      <p className="text-zinc-300 text-sm font-medium">
+                                        {formatCurrency(
+                                          holding.currentValue,
+                                          currency
+                                        )}
+                                      </p>
+                                      <p
+                                        className={`text-xs mt-1 ${
+                                          holding.profitPct >= 0
+                                            ? "text-green-500"
+                                            : "text-red-500"
+                                        }`}
+                                      >
+                                        {holding.profitPct >= 0 ? "+" : ""}
+                                        {holding.profitPct.toFixed(1)}%
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )}
-
-                          <span className="text-zinc-500 text-lg">
-                            {isExpanded ? "⌃" : "⌄"}
-                          </span>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="px-5 pb-5">
-                            <div className="space-y-1">
-                              {group.holdings.map((holding) => (
-                                <button
-                                  key={holding.key}
-                                  type="button"
-                                  onClick={() => openHoldingDetail(holding)}
-                                  className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="text-zinc-200 truncate">
-                                      {holding.name}
-                                    </p>
-                                  </div>
-
-                                  <div className="text-right shrink-0">
-                                    <p className="text-zinc-300 text-sm font-medium">
-                                      {formatCurrency(
-                                        holding.currentValue,
-                                        currency
-                                      )}
-                                    </p>
-                                    <p
-                                      className={`text-xs mt-1 ${
-                                        holding.profitPct >= 0
-                                          ? "text-green-500"
-                                          : "text-red-500"
-                                      }`}
-                                    >
-                                      {holding.profitPct >= 0 ? "+" : ""}
-                                      {holding.profitPct.toFixed(1)}%
-                                    </p>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </section>
           )}
 
           {activeTab === "activity" && (
             <section className="mb-24">
-              <div className="mb-5">
+              <div className="mb-3">
                 <p className="text-zinc-500 text-sm mb-1">Invested in</p>
 
                 <div className="relative inline-block">
@@ -907,7 +911,7 @@ export default function Portfolio() {
                 </div>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-5">
                 <p className="text-3xl font-semibold tracking-tight text-white">
                   {formatCurrency(periodInvested, currency)}
                 </p>
