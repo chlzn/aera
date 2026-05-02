@@ -68,16 +68,6 @@ const assetTypeOrder: AssetType[] = [
   "other",
 ]
 
-const assetTypes: { value: AssetType; label: string }[] = [
-  { value: "crypto", label: "Crypto" },
-  { value: "stock", label: "Stock" },
-  { value: "etf", label: "ETF" },
-  { value: "real_estate", label: "Real Estate" },
-  { value: "fixed_income", label: "Fixed Income" },
-  { value: "cash", label: "Cash" },
-  { value: "other", label: "Other" },
-]
-
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -440,17 +430,9 @@ export default function PortfolioPage() {
                           </div>
                         )}
 
-                        {isExpanded && (
-                          <span className="text-[var(--accent)] text-lg">
-                            ⌃
-                          </span>
-                        )}
-
-                        {!isExpanded && (
-                          <span className="text-[var(--accent)] text-lg">
-                            ⌄
-                          </span>
-                        )}
+                        <span className="text-zinc-500 text-lg">
+                          {isExpanded ? "⌃" : "⌄"}
+                        </span>
                       </button>
 
                       {isExpanded && (
@@ -461,23 +443,11 @@ export default function PortfolioPage() {
                                 key={holding.key}
                                 type="button"
                                 onClick={() => openHoldingDetail(holding)}
-                                className="w-full flex items-center justify-between gap-4 rounded-[20px] px-0 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                                className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
                               >
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-zinc-200 truncate">
-                                      {holding.name}
-                                    </p>
-                                    {holding.ticker && (
-                                      <span className="text-xs text-zinc-600 uppercase">
-                                        {holding.ticker}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <p className="text-xs text-zinc-600 mt-1">
-                                    {formatAssetType(holding.type)} · Invested{" "}
-                                    {formatCurrency(holding.invested, currency)}
+                                  <p className="text-zinc-200 truncate">
+                                    {holding.name}
                                   </p>
                                 </div>
 
@@ -605,18 +575,18 @@ export default function PortfolioPage() {
 
                 <button
                   type="button"
-                  onClick={handleSaveHolding}
+                  onClick={openInvestMore}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
                 >
-                  Save holding
+                  Invest more
                 </button>
 
                 <button
                   type="button"
-                  onClick={openInvestMore}
-                  className="w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[50px] font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98] cursor-pointer touch-manipulation"
+                  onClick={handleSaveHolding}
+                  className="w-full text-center text-zinc-400 text-sm py-1.5 transition-colors duration-200 ease-out hover:text-white cursor-pointer"
                 >
-                  Invest more
+                  Save holding
                 </button>
               </div>
             </div>

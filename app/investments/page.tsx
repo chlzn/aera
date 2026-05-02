@@ -138,6 +138,7 @@ export default function Investments() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState("")
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
   const [isMonthlyOpen, setIsMonthlyOpen] = useState(false)
   const [isMonthlyListOpen, setIsMonthlyListOpen] = useState(false)
 
@@ -173,22 +174,21 @@ export default function Investments() {
                 amount: asset.invested || 0,
                 ticker: asset.ticker,
                 notes: asset.notes,
-                date: asset.createdAt
-                  ? asset.createdAt.slice(0, 10)
-                  : getTodayDate(),
+                date: asset.createdAt ? asset.createdAt.slice(0, 10) : getTodayDate(),
                 accountId: asset.accountId || "main",
                 createdAt: asset.createdAt || new Date().toISOString(),
                 updatedAt: asset.updatedAt || new Date().toISOString(),
               })
             )
 
-            const migratedHoldingValues = parsedLegacy.reduce<
-              Record<string, number>
-            >((acc, asset: LegacyInvestment) => {
-              const key = getHoldingKey(asset.name, asset.ticker)
-              acc[key] = asset.currentValue || asset.invested || 0
-              return acc
-            }, {})
+            const migratedHoldingValues = parsedLegacy.reduce<Record<string, number>>(
+              (acc, asset: LegacyInvestment) => {
+                const key = getHoldingKey(asset.name, asset.ticker)
+                acc[key] = asset.currentValue || asset.invested || 0
+                return acc
+              },
+              {}
+            )
 
             setEntries(migratedEntries)
             setHoldingValues(migratedHoldingValues)
@@ -225,10 +225,8 @@ export default function Investments() {
           (sum, entry) => sum + entry.amount,
           0
         )
-
         const currentValue =
           typeof holdingValues[key] === "number" ? holdingValues[key] : invested
-
         const profit = currentValue - invested
         const profitPct = invested > 0 ? (profit / invested) * 100 : 0
 
@@ -457,26 +455,41 @@ export default function Investments() {
             <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
           </header>
 
-          <section className="mb-6">
-            <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
-              <div>
-                <p className="text-zinc-500 text-sm mb-3">Current Value</p>
-                <h2 className="text-5xl font-semibold tracking-tight">
-                  {formatCurrency(totals.currentTotal, currency)}
-                </h2>
+          <section>
+            <button
+              type="button"
+              onClick={() => setIsOverviewExpanded((prev) => !prev)}
+              className={`w-full rounded-[30px] bg-zinc-900/72 p-8 text-left shadow-[0_14px_40px_rgba(0,0,0,0.28)] transition-all duration-200 ease-out ${
+                isOverviewExpanded
+                  ? "border border-[var(--accent)]/15"
+                  : "border border-white/5"
+              }`}
+            >
+              <p className="text-zinc-500 text-sm mb-3">Current Value</p>
 
-                <div className="mt-5 flex gap-6 flex-wrap text-sm">
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Invested</span>
-                    <span className="text-white font-medium">
+              <h2 className="text-5xl font-semibold tracking-tight">
+                {formatCurrency(totals.currentTotal, currency)}
+              </h2>
+
+              <div
+                className={`overflow-hidden transition-all duration-200 ease-out ${
+                  isOverviewExpanded
+                    ? "max-h-[220px] opacity-100 mt-6"
+                    : "max-h-0 opacity-0 mt-0"
+                }`}
+              >
+                <div className="grid gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500 text-sm">Invested</span>
+                    <span className="text-white text-sm font-medium">
                       {formatCurrency(totals.investedTotal, currency)}
                     </span>
                   </div>
 
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Profit</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500 text-sm">Profit</span>
                     <span
-                      className={`font-medium ${
+                      className={`text-sm font-medium ${
                         totals.profit >= 0 ? "text-green-500" : "text-red-500"
                       }`}
                     >
@@ -484,10 +497,10 @@ export default function Investments() {
                     </span>
                   </div>
 
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Performance</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500 text-sm">Performance</span>
                     <span
-                      className={`font-medium ${
+                      className={`text-sm font-medium ${
                         totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
                       }`}
                     >
@@ -497,37 +510,16 @@ export default function Investments() {
                   </div>
                 </div>
               </div>
-            </div>
+            </button>
           </section>
 
-          <section className="mb-6">
+          <section className="mt-6">
             <p className="text-sm text-zinc-400">{portfolioInsight}</p>
           </section>
 
-          <section className="mb-8">
-            <div className="rounded-[26px] bg-zinc-900/45 border border-white/5 p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-zinc-300 text-sm font-medium">
-                    Add investment
-                  </p>
-                  <p className="text-zinc-500 text-sm mt-1">
-                    Add a new contribution to your portfolio.
-                  </p>
-                </div>
+          <div className="h-px bg-white/5 my-6" />
 
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
-                >
-                  + Add
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section className="mb-8">
+          <section>
             <Link
               href="/investments/portfolio"
               className="group block rounded-[28px] bg-zinc-900/55 border border-white/5 p-6 sm:p-7 transition-all duration-200 ease-out hover:bg-zinc-900/72 active:scale-[0.995]"
@@ -553,6 +545,33 @@ export default function Investments() {
             </Link>
           </section>
 
+          <div className="h-px bg-white/5 my-6" />
+
+          <section>
+            <div className="rounded-[26px] bg-zinc-900/45 border border-white/5 p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-zinc-300 text-sm font-medium">
+                    Add investment
+                  </p>
+                  <p className="text-zinc-500 text-sm mt-1">
+                    Add a new contribution to your portfolio.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
+                >
+                  + Add
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <div className="h-px bg-white/5 my-6" />
+
           <section className="mb-24">
             <button
               type="button"
@@ -560,7 +579,7 @@ export default function Investments() {
               className="w-full flex items-center justify-between text-left mb-4"
             >
               <p className="text-white text-sm font-medium">Monthly activity</p>
-              <span className="text-[var(--accent)] text-lg">
+              <span className="text-zinc-500 text-lg">
                 {isMonthlyOpen ? "⌃" : "⌄"}
               </span>
             </button>
@@ -613,7 +632,7 @@ export default function Investments() {
                       <p className="text-white text-sm font-medium">
                         Investment entries
                       </p>
-                      <span className="text-[var(--accent)] text-lg">
+                      <span className="text-zinc-500 text-lg">
                         {isMonthlyListOpen ? "⌃" : "⌄"}
                       </span>
                     </button>
