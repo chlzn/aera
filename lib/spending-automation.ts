@@ -18,6 +18,8 @@ export type EntryCategory =
   | "education"
   | "other"
 
+export type PaymentBehavior = "auto_paid" | "manual"
+
 export type AutomationTemplate =
   | {
       id: string
@@ -32,6 +34,7 @@ export type AutomationTemplate =
         amount: number
         frequency: "monthly" | "weekly"
         startDate: string
+        paymentBehavior?: PaymentBehavior
       }
     }
   | {
@@ -48,6 +51,7 @@ export type AutomationTemplate =
         installmentCount: number
         frequency: "monthly" | "biweekly" | "weekly"
         startDate: string
+        paymentBehavior?: PaymentBehavior
       }
     }
 
@@ -65,6 +69,7 @@ export type GeneratedEntry = {
   templateId: string
   automationKind: "recurring" | "installment"
   automationLabel?: string
+  paymentBehavior: PaymentBehavior
 }
 
 function parseDateKey(dateKey: string) {
@@ -73,7 +78,10 @@ function parseDateKey(dateKey: string) {
 }
 
 function toDateKeyFromParts(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+    2,
+    "0"
+  )}`
 }
 
 function daysInMonth(year: number, month: number) {
@@ -122,6 +130,10 @@ function splitInstallmentAmounts(totalAmount: number, count: number) {
   })
 }
 
+export function getScheduledPaymentId(templateId: string, date: string) {
+  return `${templateId}-${date}`
+}
+
 export function generateEntriesForPeriod(
   templates: AutomationTemplate[],
   periodKey: string
@@ -130,6 +142,7 @@ export function generateEntriesForPeriod(
 
   for (const template of templates) {
     const startDate = template.automation.startDate
+    const paymentBehavior = template.automation.paymentBehavior || "manual"
 
     if (!startDate || startDate.length < 10) continue
     if (!isBeforeOrSamePeriod(startDate, periodKey)) continue
@@ -141,7 +154,7 @@ export function generateEntriesForPeriod(
       while (cursor.slice(0, 7) <= periodKey && iterations < 1000) {
         if (isSamePeriod(cursor, periodKey)) {
           generated.push({
-            id: `${template.id}-${cursor}`,
+            id: getScheduledPaymentId(template.id, cursor),
             description: template.description,
             amount: template.automation.amount,
             type: template.type,
@@ -155,6 +168,7 @@ export function generateEntriesForPeriod(
             automationKind: "recurring",
             automationLabel:
               template.automation.frequency === "monthly" ? "Monthly" : "Weekly",
+            paymentBehavior,
           })
         }
 
@@ -184,7 +198,7 @@ export function generateEntriesForPeriod(
         if (!isSamePeriod(occurrenceDate, periodKey)) continue
 
         generated.push({
-          id: `${template.id}-${index + 1}`,
+          id: getScheduledPaymentId(template.id, occurrenceDate),
           description: template.description,
           amount: amounts[index],
           type: template.type,
@@ -197,6 +211,7 @@ export function generateEntriesForPeriod(
           templateId: template.id,
           automationKind: "installment",
           automationLabel: `${index + 1}/${template.automation.installmentCount}`,
+          paymentBehavior,
         })
       }
     }
