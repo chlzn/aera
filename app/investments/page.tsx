@@ -455,7 +455,7 @@ export default function Investments() {
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-8">
+          <header className="mb-6">
             <h1 className="text-3xl font-semibold tracking-tight">Investments</h1>
             <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
           </header>
@@ -518,16 +518,16 @@ export default function Investments() {
             </button>
           </section>
 
-          <section className="mt-4">
+          <section className="mt-3">
             <p className="text-sm text-zinc-400">{portfolioInsight}</p>
           </section>
 
-          <div className="h-px bg-white/5 my-5" />
+          <div className="h-px bg-white/5 my-4" />
 
           <section>
             <Link
               href="/investments/portfolio"
-              className="group block rounded-[28px] bg-zinc-900/55 border border-white/5 p-6 sm:p-7 transition-all duration-200 ease-out hover:bg-zinc-900/72 active:scale-[0.995]"
+              className="group block rounded-[28px] bg-zinc-900/55 border border-white/5 p-5 sm:p-6 transition-all duration-200 ease-out hover:bg-zinc-900/72 active:scale-[0.995]"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -550,7 +550,7 @@ export default function Investments() {
             </Link>
           </section>
 
-          <div className="h-px bg-white/5 my-6" />
+          <div className="h-px bg-white/5 my-4" />
 
           <section>
             <div className="rounded-[26px] bg-zinc-900/45 border border-white/5 p-4 sm:p-5">
@@ -575,7 +575,7 @@ export default function Investments() {
             </div>
           </section>
 
-          <div className="h-px bg-white/5 my-6" />
+          <div className="h-px bg-white/5 my-4" />
 
           <section className="mb-24">
             <button

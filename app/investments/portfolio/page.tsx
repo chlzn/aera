@@ -382,51 +382,34 @@ export default function PortfolioPage() {
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-8">
-            <h1 className="text-3xl font-semibold tracking-tight">Portfolio</h1>
-            <p className="text-zinc-500 mt-2">
-              See your holdings and performance.
-            </p>
-          </header>
+          <header className="mb-6">
+            <h1 className="text-4xl font-semibold tracking-tight text-white">
+              {formatCurrency(totals.currentTotal, currency)}
+            </h1>
 
-          {groups.length > 0 && (
-            <section className="mb-6">
-              <div>
-                <p className="text-zinc-500 text-sm mb-2">Portfolio Value</p>
+            {groups.length > 0 && (
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span
+                  className={`font-medium ${
+                    totals.profit >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {formatCurrency(totals.profit, currency)}
+                </span>
 
-                <h2 className="text-3xl font-semibold tracking-tight text-white">
-                  {formatCurrency(totals.currentTotal, currency)}
-                </h2>
+                <span className="text-zinc-600">•</span>
 
-                <div className="mt-3 flex gap-2 flex-wrap text-sm">
-                  <span
-                    className={`font-medium ${
-                      totals.profit >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
-                    {formatCurrency(totals.profit, currency)}
-                  </span>
-
-                  <span className="text-zinc-600">•</span>
-
-                  <span
-                    className={`font-medium ${
-                      totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
-                    {totals.profitPct >= 0 ? "+" : ""}
-                    {totals.profitPct.toFixed(1)}%
-                  </span>
-
-                  <span className="text-zinc-600">•</span>
-
-                  <span className="text-zinc-500">
-                    Invested {formatCurrency(totals.investedTotal, currency)}
-                  </span>
-                </div>
+                <span
+                  className={`font-medium ${
+                    totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {totals.profitPct >= 0 ? "+" : ""}
+                  {totals.profitPct.toFixed(1)}%
+                </span>
               </div>
-            </section>
-          )}
+            )}
+          </header>
 
           {groups.length === 0 ? (
             <section className="mb-10">
