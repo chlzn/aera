@@ -226,8 +226,10 @@ export default function Investments() {
           (sum, entry) => sum + entry.amount,
           0
         )
+
         const currentValue =
           typeof holdingValues[key] === "number" ? holdingValues[key] : invested
+
         const profit = currentValue - invested
         const profitPct = invested > 0 ? (profit / invested) * 100 : 0
 
@@ -284,10 +286,12 @@ export default function Investments() {
       (acc, holding) => acc + holding.invested,
       0
     )
+
     const currentTotal = holdings.reduce(
       (acc, holding) => acc + holding.currentValue,
       0
     )
+
     const profit = currentTotal - investedTotal
     const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0
 
@@ -460,10 +464,10 @@ export default function Investments() {
             <button
               type="button"
               onClick={() => setIsOverviewExpanded((prev) => !prev)}
-              className={`w-full rounded-[30px] bg-black p-8 text-left shadow-[0_14px_40px_rgba(0,0,0,0.28)] transition-all duration-200 ease-out ${
+              className={`w-full rounded-[30px] bg-black text-left transition-all duration-200 ease-out ${
                 isOverviewExpanded
-                  ? "border border-[var(--accent)]/15"
-                  : "border border-white/5"
+                  ? "border border-[var(--accent)]/15 p-8"
+                  : "border border-transparent p-0"
               }`}
             >
               <p className="text-zinc-500 text-sm mb-3">Current Value</p>

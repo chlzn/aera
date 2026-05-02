@@ -391,43 +391,38 @@ export default function PortfolioPage() {
 
           {groups.length > 0 && (
             <section className="mb-6">
-              <div className="rounded-[30px] bg-black border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
-                <p className="text-zinc-500 text-sm mb-3">Portfolio Value</p>
+              <div>
+                <p className="text-zinc-500 text-sm mb-2">Portfolio Value</p>
 
-                <h2 className="text-5xl font-semibold tracking-tight text-white">
+                <h2 className="text-3xl font-semibold tracking-tight text-white">
                   {formatCurrency(totals.currentTotal, currency)}
                 </h2>
 
-                <div className="mt-5 flex gap-6 flex-wrap text-sm">
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Profit</span>
-                    <span
-                      className={`font-medium ${
-                        totals.profit >= 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      {formatCurrency(totals.profit, currency)}
-                    </span>
-                  </div>
+                <div className="mt-3 flex gap-2 flex-wrap text-sm">
+                  <span
+                    className={`font-medium ${
+                      totals.profit >= 0 ? "text-green-500" : "text-red-500"
+                    }`}
+                  >
+                    {formatCurrency(totals.profit, currency)}
+                  </span>
 
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Performance</span>
-                    <span
-                      className={`font-medium ${
-                        totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      {totals.profitPct >= 0 ? "+" : ""}
-                      {totals.profitPct.toFixed(1)}%
-                    </span>
-                  </div>
+                  <span className="text-zinc-600">•</span>
 
-                  <div className="flex flex-col">
-                    <span className="text-zinc-500">Invested</span>
-                    <span className="text-white font-medium">
-                      {formatCurrency(totals.investedTotal, currency)}
-                    </span>
-                  </div>
+                  <span
+                    className={`font-medium ${
+                      totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
+                    }`}
+                  >
+                    {totals.profitPct >= 0 ? "+" : ""}
+                    {totals.profitPct.toFixed(1)}%
+                  </span>
+
+                  <span className="text-zinc-600">•</span>
+
+                  <span className="text-zinc-500">
+                    Invested {formatCurrency(totals.investedTotal, currency)}
+                  </span>
                 </div>
               </div>
             </section>
