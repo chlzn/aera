@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import {
   Briefcase,
@@ -7,8 +8,10 @@ import {
   Circle,
   Gamepad2,
   GraduationCap,
+  GripVertical,
   HeartPulse,
   House,
+  PieChart,
   Plane,
   PlusCircle,
   Receipt,
@@ -83,6 +86,7 @@ const expenseCategories: { value: EntryCategory; label: string }[] = [
   { value: "travel", label: "Travel" },
   { value: "education", label: "Education" },
   { value: "payments", label: "Payments" },
+  { value: "investments", label: "Investments" },
   { value: "housing", label: "Housing" },
   { value: "other", label: "Other" },
 ]
@@ -104,10 +108,11 @@ const categoryIcons: Record<EntryCategory, LucideIcon> = {
   travel: Plane,
   education: GraduationCap,
   payments: RotateCcw,
+  investments: PieChart,
   other: Circle,
 }
 
-const expenseCategoryOrder = expenseCategories.map((item) => item.value)
+const defaultExpenseCategoryOrder = expenseCategories.map((item) => item.value)
 
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -172,8 +177,8 @@ function isDue(date: string) {
   return date <= getTodayDate()
 }
 
-function getCategorySortIndex(category: EntryCategory) {
-  const index = expenseCategoryOrder.indexOf(category)
+function getCategorySortIndex(category: EntryCategory, order: EntryCategory[]) {
+  const index = order.indexOf(category)
   return index === -1 ? 999 : index
 }
 
@@ -183,6 +188,12 @@ export default function Spending() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
   const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
+  const [customCategoryOrder, setCustomCategoryOrder] = useState<EntryCategory[]>(
+    []
+  )
+  const [draggedCategory, setDraggedCategory] = useState<EntryCategory | null>(
+    null
+  )
   const [entriesHydrated, setEntriesHydrated] = useState(false)
 
   const [expandedCategory, setExpandedCategory] = useState<EntryCategory | null>(
@@ -218,7 +229,6 @@ export default function Spending() {
     useState<DisplayEntry | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isScheduledPanelOpen, setIsScheduledPanelOpen] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -226,6 +236,7 @@ export default function Spending() {
       const savedEntries = localStorage.getItem("entries")
       const savedTemplates = localStorage.getItem("automationTemplates")
       const savedPaidScheduledIds = localStorage.getItem("paidScheduledPayments")
+      const savedCategoryOrder = localStorage.getItem("spendingCategoryOrder")
 
       if (savedEntries) {
         const parsedEntries = JSON.parse(savedEntries)
@@ -243,10 +254,18 @@ export default function Spending() {
           Array.isArray(parsedPaidScheduledIds) ? parsedPaidScheduledIds : []
         )
       }
+
+      if (savedCategoryOrder) {
+        const parsedCategoryOrder = JSON.parse(savedCategoryOrder)
+        setCustomCategoryOrder(
+          Array.isArray(parsedCategoryOrder) ? parsedCategoryOrder : []
+        )
+      }
     } catch {
       setEntries([])
       setTemplates([])
       setPaidScheduledIds([])
+      setCustomCategoryOrder([])
     } finally {
       setEntriesHydrated(true)
     }
@@ -262,10 +281,20 @@ export default function Spending() {
         "paidScheduledPayments",
         JSON.stringify(paidScheduledIds)
       )
+      localStorage.setItem(
+        "spendingCategoryOrder",
+        JSON.stringify(customCategoryOrder)
+      )
     } catch {
       // silent
     }
-  }, [entries, templates, paidScheduledIds, entriesHydrated])
+  }, [
+    entries,
+    templates,
+    paidScheduledIds,
+    customCategoryOrder,
+    entriesHydrated,
+  ])
 
   useEffect(() => {
     const defaultCategory =
@@ -276,6 +305,18 @@ export default function Spending() {
   const availablePeriods = useMemo(() => {
     return getAvailablePeriodsFromCurrentYear()
   }, [])
+
+  const effectiveCategoryOrder = useMemo(() => {
+    const existing = customCategoryOrder.filter((categoryName) =>
+      defaultExpenseCategoryOrder.includes(categoryName)
+    )
+
+    const missing = defaultExpenseCategoryOrder.filter(
+      (categoryName) => !existing.includes(categoryName)
+    )
+
+    return [...existing, ...missing]
+  }, [customCategoryOrder])
 
   const manualPeriodEntries = useMemo<DisplayEntry[]>(() => {
     return entries
@@ -370,7 +411,7 @@ export default function Spending() {
     })
 
     const categories = Array.from(usedCategories).filter((item) =>
-      expenseCategoryOrder.includes(item)
+      defaultExpenseCategoryOrder.includes(item)
     )
 
     return categories
@@ -392,9 +433,19 @@ export default function Spending() {
         if (a.isActiveThisMonth && !b.isActiveThisMonth) return -1
         if (!a.isActiveThisMonth && b.isActiveThisMonth) return 1
         if (a.total !== b.total) return b.total - a.total
-        return getCategorySortIndex(a.category) - getCategorySortIndex(b.category)
+
+        return (
+          getCategorySortIndex(a.category, effectiveCategoryOrder) -
+          getCategorySortIndex(b.category, effectiveCategoryOrder)
+        )
       })
-  }, [entries, templates, periodEntries, scheduledEntries])
+  }, [
+    entries,
+    templates,
+    periodEntries,
+    scheduledEntries,
+    effectiveCategoryOrder,
+  ])
 
   const topCategories = useMemo(() => {
     return spendingGroups
@@ -594,13 +645,6 @@ export default function Spending() {
     resetForm()
   }
 
-  const markScheduledAsPaid = (entry: DisplayEntry) => {
-    setPaidScheduledIds((prev) => {
-      if (prev.includes(entry.id)) return prev
-      return [...prev, entry.id]
-    })
-  }
-
   const deleteDisplayEntry = (entry: DisplayEntry) => {
     if (entry.source === "manual") {
       setEntries((prev) => prev.filter((item) => item.id !== entry.id))
@@ -614,6 +658,29 @@ export default function Spending() {
       )
       closeTransactionDetail()
     }
+  }
+
+  const handleCategoryDrop = (targetCategory: EntryCategory) => {
+    if (!draggedCategory || draggedCategory === targetCategory) {
+      setDraggedCategory(null)
+      return
+    }
+
+    setCustomCategoryOrder(() => {
+      const baseOrder = effectiveCategoryOrder
+      const withoutDragged = baseOrder.filter((item) => item !== draggedCategory)
+      const targetIndex = withoutDragged.indexOf(targetCategory)
+
+      if (targetIndex === -1) return baseOrder
+
+      return [
+        ...withoutDragged.slice(0, targetIndex),
+        draggedCategory,
+        ...withoutDragged.slice(targetIndex),
+      ]
+    })
+
+    setDraggedCategory(null)
   }
 
   const handleSubmit = () => {
@@ -829,14 +896,13 @@ export default function Spending() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsScheduledPanelOpen(true)}
+                <Link
+                  href="/spending/scheduled"
                   className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900/60 border border-white/5 text-zinc-400 transition-all duration-200 ease-out hover:text-white active:scale-[0.96]"
                   aria-label="Scheduled payments"
                 >
                   <Repeat size={19} strokeWidth={2} />
-                </button>
+                </Link>
 
                 <button
                   type="button"
@@ -967,6 +1033,10 @@ export default function Spending() {
                     >
                       <button
                         type="button"
+                        draggable
+                        onDragStart={() => setDraggedCategory(group.category)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => handleCategoryDrop(group.category)}
                         onClick={() =>
                           setExpandedCategory((prev) =>
                             prev === group.category ? null : group.category
@@ -975,6 +1045,12 @@ export default function Spending() {
                         className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
                       >
                         <div className="min-w-0 flex items-center gap-3">
+                          <GripVertical
+                            size={14}
+                            strokeWidth={2}
+                            className="text-zinc-700 shrink-0 cursor-grab"
+                          />
+
                           <Icon
                             size={18}
                             strokeWidth={2}
@@ -1001,26 +1077,29 @@ export default function Spending() {
                         </div>
 
                         {!isExpanded && (
-                          <div className="text-right shrink-0">
+                          <div className="text-right shrink-0 ml-auto">
                             <p className="text-zinc-300 text-sm font-medium">
                               {formatCurrency(group.total, currency)}
                             </p>
                           </div>
                         )}
-
-                        <span className="text-zinc-500 text-lg">
-                          {isExpanded ? "⌃" : "⌄"}
-                        </span>
                       </button>
 
                       {isExpanded && (
                         <div className="px-5 pb-5">
-                          <div className="mb-4">
-                            <p className="text-zinc-500 text-xs">
-                              Total this month
-                            </p>
-                            <p className="text-white text-lg font-medium mt-1">
-                              {formatCurrency(group.total, currency)}
+                          <div className="mb-4 flex items-end justify-between gap-4">
+                            <div>
+                              <p className="text-zinc-500 text-xs">
+                                Total this month
+                              </p>
+                              <p className="text-white text-lg font-medium mt-1">
+                                {formatCurrency(group.total, currency)}
+                              </p>
+                            </div>
+
+                            <p className="text-zinc-600 text-xs">
+                              {group.entries.length} transaction
+                              {group.entries.length === 1 ? "" : "s"}
                             </p>
                           </div>
 
@@ -1080,103 +1159,6 @@ export default function Spending() {
         </div>
       </main>
 
-      {isScheduledPanelOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
-          onClick={() => setIsScheduledPanelOpen(false)}
-        >
-          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
-            <div
-              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-white text-sm font-medium">
-                    Scheduled payments
-                  </p>
-                  <p className="text-zinc-600 text-xs mt-1">
-                    Upcoming and unpaid transactions.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsScheduledPanelOpen(false)}
-                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-
-              {scheduledEntries.length === 0 ? (
-                <div className="rounded-[24px] bg-zinc-950/30 border border-white/5 p-5">
-                  <p className="text-zinc-300 text-sm">
-                    No scheduled payments.
-                  </p>
-                  <p className="text-zinc-600 text-sm mt-1">
-                    Recurring and installment items will appear here.
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-[24px] bg-zinc-950/25 border border-white/5 overflow-hidden">
-                  {scheduledEntries.map((entry, index) => {
-                    const behavior = entry.paymentBehavior || "manual"
-                    const isManual = behavior === "manual"
-
-                    return (
-                      <div
-                        key={entry.id}
-                        className={`flex items-center justify-between gap-4 px-5 py-4 ${
-                          index !== scheduledEntries.length - 1
-                            ? "border-b border-white/5"
-                            : ""
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsScheduledPanelOpen(false)
-                            openTransactionDetail(entry)
-                          }}
-                          className="min-w-0 text-left flex-1"
-                        >
-                          <p className="text-zinc-300 text-sm truncate">
-                            {entry.description}
-                          </p>
-
-                          <p className="text-xs text-zinc-600 mt-1">
-                            {formatCurrency(entry.amount, currency)} ·{" "}
-                            {formatDate(entry.date)}
-                            {entry.automationLabel
-                              ? ` · ${entry.automationLabel}`
-                              : ""}
-                          </p>
-                        </button>
-
-                        {isManual ? (
-                          <button
-                            type="button"
-                            onClick={() => markScheduledAsPaid(entry)}
-                            className="shrink-0 rounded-full border border-[var(--accent)]/15 bg-[var(--accent)]/[0.06] text-[var(--accent)] px-3 py-2 text-xs font-medium transition-all duration-200 ease-out active:scale-[0.98]"
-                          >
-                            Mark paid
-                          </button>
-                        ) : (
-                          <span className="shrink-0 text-xs text-zinc-600">
-                            Upcoming
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {isDetailOpen && selectedTransaction && (
         <div
           className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
@@ -1185,7 +1167,7 @@ export default function Spending() {
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
               className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
@@ -1288,7 +1270,7 @@ export default function Spending() {
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
               className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
@@ -1336,7 +1318,7 @@ export default function Spending() {
                 <input
                   placeholder="Description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(event) => setDescription(event.target.value)}
                   className={fieldClass}
                 />
 
@@ -1346,7 +1328,9 @@ export default function Spending() {
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as EntryCategory)}
+                    onChange={(event) =>
+                      setCategory(event.target.value as EntryCategory)
+                    }
                     className={fieldClass}
                   >
                     {currentCategories.map((item) => (
@@ -1431,14 +1415,14 @@ export default function Spending() {
                       min="0"
                       step="0.01"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(event) => setAmount(event.target.value)}
                       className={fieldClass}
                     />
 
                     <input
                       type="date"
                       value={date}
-                      onChange={(e) => setDate(e.target.value)}
+                      onChange={(event) => setDate(event.target.value)}
                       className={fieldClass}
                     />
                   </div>
@@ -1452,7 +1436,7 @@ export default function Spending() {
                       min="0"
                       step="0.01"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(event) => setAmount(event.target.value)}
                       className={fieldClass}
                     />
 
@@ -1462,9 +1446,9 @@ export default function Spending() {
                       </label>
                       <select
                         value={recurringFrequency}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setRecurringFrequency(
-                            e.target.value as "monthly" | "weekly"
+                            event.target.value as "monthly" | "weekly"
                           )
                         }
                         className={fieldClass}
@@ -1477,7 +1461,9 @@ export default function Spending() {
                     <input
                       type="date"
                       value={automationStartDate}
-                      onChange={(e) => setAutomationStartDate(e.target.value)}
+                      onChange={(event) =>
+                        setAutomationStartDate(event.target.value)
+                      }
                       className={fieldClass}
                     />
 
@@ -1497,7 +1483,9 @@ export default function Spending() {
                       min="0"
                       step="0.01"
                       value={installmentTotalAmount}
-                      onChange={(e) => setInstallmentTotalAmount(e.target.value)}
+                      onChange={(event) =>
+                        setInstallmentTotalAmount(event.target.value)
+                      }
                       className={fieldClass}
                     />
 
@@ -1507,7 +1495,7 @@ export default function Spending() {
                       min="2"
                       step="1"
                       value={installmentCount}
-                      onChange={(e) => setInstallmentCount(e.target.value)}
+                      onChange={(event) => setInstallmentCount(event.target.value)}
                       className={fieldClass}
                     />
 
@@ -1517,9 +1505,12 @@ export default function Spending() {
                       </label>
                       <select
                         value={installmentFrequency}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setInstallmentFrequency(
-                            e.target.value as "monthly" | "weekly" | "biweekly"
+                            event.target.value as
+                              | "monthly"
+                              | "weekly"
+                              | "biweekly"
                           )
                         }
                         className={fieldClass}
@@ -1533,7 +1524,9 @@ export default function Spending() {
                     <input
                       type="date"
                       value={automationStartDate}
-                      onChange={(e) => setAutomationStartDate(e.target.value)}
+                      onChange={(event) =>
+                        setAutomationStartDate(event.target.value)
+                      }
                       className={fieldClass}
                     />
 
