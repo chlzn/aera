@@ -16,7 +16,7 @@ export default function Navbar() {
   const links = [
     { href: "/", label: "Home", icon: House },
     { href: "/spending", label: "Spending", icon: Wallet },
-    { href: "/investments", label: "Invest", icon: ChartNoAxesCombined },
+    { href: "/investments", label: "Portfolio", icon: ChartNoAxesCombined },
     { href: "/tools", label: "Tools", icon: SlidersHorizontal },
     { href: "/settings", label: "Settings", icon: Settings },
   ]
@@ -46,9 +46,7 @@ export default function Navbar() {
                 size={20}
                 strokeWidth={2}
                 className={`transition-all duration-200 ease-out ${
-                  isActive
-                    ? "text-white scale-105"
-                    : "text-zinc-500/80"
+                  isActive ? "text-white scale-105" : "text-zinc-500/80"
                 }`}
               />
 

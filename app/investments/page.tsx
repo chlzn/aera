@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { ArrowUpRight, BriefcaseBusiness } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -19,6 +17,8 @@ type AssetType =
   | "fixed_income"
   | "cash"
   | "other"
+
+type PortfolioTab = "overview" | "holdings" | "activity"
 
 type LegacyInvestment = {
   id: string
@@ -59,6 +59,17 @@ type PortfolioHolding = {
   entries: InvestmentEntry[]
 }
 
+type PortfolioGroup = {
+  type: AssetType
+  label: string
+  invested: number
+  currentValue: number
+  profit: number
+  profitPct: number
+  allocationPct: number
+  holdings: PortfolioHolding[]
+}
+
 const assetTypes: { value: AssetType; label: string }[] = [
   { value: "crypto", label: "Crypto" },
   { value: "stock", label: "Stock" },
@@ -67,6 +78,26 @@ const assetTypes: { value: AssetType; label: string }[] = [
   { value: "fixed_income", label: "Fixed Income" },
   { value: "cash", label: "Cash" },
   { value: "other", label: "Other" },
+]
+
+const assetTypeLabels: Record<AssetType, string> = {
+  crypto: "Crypto",
+  stock: "Stocks",
+  etf: "ETF",
+  real_estate: "Real Estate",
+  fixed_income: "Fixed Income",
+  cash: "Cash",
+  other: "Other",
+}
+
+const assetTypeOrder: AssetType[] = [
+  "crypto",
+  "stock",
+  "etf",
+  "real_estate",
+  "fixed_income",
+  "cash",
+  "other",
 ]
 
 function formatCurrency(value: number, currency = "USD") {
@@ -119,12 +150,15 @@ function normalizeTicker(value: string) {
   return clean || undefined
 }
 
-export default function Investments() {
+export default function Portfolio() {
   const { currency } = useCurrency()
 
   const [entries, setEntries] = useState<InvestmentEntry[]>([])
   const [holdingValues, setHoldingValues] = useState<Record<string, number>>({})
   const [entriesHydrated, setEntriesHydrated] = useState(false)
+
+  const [activeTab, setActiveTab] = useState<PortfolioTab>("overview")
+  const [expandedGroup, setExpandedGroup] = useState<AssetType | null>(null)
 
   const [name, setName] = useState("")
   const [type, setType] = useState<AssetType>("crypto")
@@ -136,11 +170,18 @@ export default function Investments() {
 
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const [selectedHoldingKey, setSelectedHoldingKey] = useState<string | null>(
+    null
+  )
+  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false)
+  const [isHoldingDetailOpen, setIsHoldingDetailOpen] = useState(false)
+  const [isInvestMoreOpen, setIsInvestMoreOpen] = useState(false)
+  const [investMoreAmount, setInvestMoreAmount] = useState("")
+  const [investMoreDate, setInvestMoreDate] = useState(getTodayDate())
+
+  const [isActivityListOpen, setIsActivityListOpen] = useState(true)
   const [error, setError] = useState("")
-  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
-  const [isMonthlyOpen, setIsMonthlyOpen] = useState(false)
-  const [isMonthlyListOpen, setIsMonthlyListOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -249,6 +290,64 @@ export default function Investments() {
       .sort((a, b) => b.currentValue - a.currentValue)
   }, [entries, holdingValues])
 
+  const totals = useMemo(() => {
+    const investedTotal = holdings.reduce(
+      (acc, holding) => acc + holding.invested,
+      0
+    )
+
+    const currentTotal = holdings.reduce(
+      (acc, holding) => acc + holding.currentValue,
+      0
+    )
+
+    const profit = currentTotal - investedTotal
+    const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0
+
+    return {
+      investedTotal,
+      currentTotal,
+      profit,
+      profitPct,
+    }
+  }, [holdings])
+
+  const groups = useMemo<PortfolioGroup[]>(() => {
+    return assetTypeOrder
+      .map((assetType) => {
+        const groupHoldings = holdings
+          .filter((holding) => holding.type === assetType)
+          .sort((a, b) => b.currentValue - a.currentValue)
+
+        const invested = groupHoldings.reduce(
+          (sum, holding) => sum + holding.invested,
+          0
+        )
+
+        const currentValue = groupHoldings.reduce(
+          (sum, holding) => sum + holding.currentValue,
+          0
+        )
+
+        const profit = currentValue - invested
+        const profitPct = invested > 0 ? (profit / invested) * 100 : 0
+        const allocationPct =
+          totals.currentTotal > 0 ? (currentValue / totals.currentTotal) * 100 : 0
+
+        return {
+          type: assetType,
+          label: assetTypeLabels[assetType],
+          invested,
+          currentValue,
+          profit,
+          profitPct,
+          allocationPct,
+          holdings: groupHoldings,
+        }
+      })
+      .filter((group) => group.holdings.length > 0)
+  }, [holdings, totals.currentTotal])
+
   useEffect(() => {
     if (!entriesHydrated) return
 
@@ -281,30 +380,10 @@ export default function Investments() {
     return getAvailablePeriodsFromCurrentYear()
   }, [])
 
-  const totals = useMemo(() => {
-    const investedTotal = holdings.reduce(
-      (acc, holding) => acc + holding.invested,
-      0
-    )
-
-    const currentTotal = holdings.reduce(
-      (acc, holding) => acc + holding.currentValue,
-      0
-    )
-
-    const profit = currentTotal - investedTotal
-    const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0
-
-    return {
-      investedTotal,
-      currentTotal,
-      profit,
-      profitPct,
-    }
-  }, [holdings])
-
   const periodEntries = useMemo(() => {
-    return entries.filter((entry) => isSamePeriod(entry.date, selectedPeriod))
+    return entries
+      .filter((entry) => isSamePeriod(entry.date, selectedPeriod))
+      .sort((a, b) => b.date.localeCompare(a.date))
   }, [entries, selectedPeriod])
 
   const periodInvested = periodEntries.reduce(
@@ -312,23 +391,13 @@ export default function Investments() {
     0
   )
 
-  const portfolioInsight = useMemo(() => {
-    if (holdings.length === 0) {
-      return "No data yet — add your first investment to start building your portfolio."
-    }
+  const selectedHolding = useMemo(() => {
+    return holdings.find((holding) => holding.key === selectedHoldingKey) || null
+  }, [holdings, selectedHoldingKey])
 
-    if (totals.profit > 0) {
-      return "Your portfolio is above your invested capital."
-    }
+  const topAllocation = groups[0]
 
-    if (totals.profit < 0) {
-      return "Your portfolio is currently below your invested capital."
-    }
-
-    return "Your portfolio is currently flat."
-  }, [holdings.length, totals.profit])
-
-  const resetForm = () => {
+  const resetAssetForm = () => {
     setName("")
     setType("crypto")
     setAmount("")
@@ -340,9 +409,9 @@ export default function Investments() {
     setError("")
   }
 
-  const openCreateModal = () => {
-    resetForm()
-    setIsModalOpen(true)
+  const openCreateAssetModal = () => {
+    resetAssetForm()
+    setIsAssetModalOpen(true)
   }
 
   const openEditEntryModal = (entry: InvestmentEntry) => {
@@ -359,15 +428,15 @@ export default function Investments() {
     setDate(entry.date)
     setEditingEntryId(entry.id)
     setError("")
-    setIsModalOpen(true)
+    setIsAssetModalOpen(true)
   }
 
-  const closeModal = () => {
-    setIsModalOpen(false)
-    resetForm()
+  const closeAssetModal = () => {
+    setIsAssetModalOpen(false)
+    resetAssetForm()
   }
 
-  const handleSubmit = () => {
+  const handleAssetSubmit = () => {
     const now = new Date().toISOString()
     const amountNumber = Number(amount)
     const cleanName = name.trim()
@@ -438,14 +507,109 @@ export default function Investments() {
       }))
     }
 
-    closeModal()
+    closeAssetModal()
   }
 
-  const handleDelete = () => {
+  const handleDeleteEntry = () => {
     if (!editingEntryId) return
 
     setEntries((prev) => prev.filter((entry) => entry.id !== editingEntryId))
-    closeModal()
+    closeAssetModal()
+  }
+
+  const openHoldingDetail = (holding: PortfolioHolding) => {
+    setSelectedHoldingKey(holding.key)
+    setCurrentValue(String(holding.currentValue))
+    setError("")
+    setIsHoldingDetailOpen(true)
+  }
+
+  const closeHoldingDetail = () => {
+    setIsHoldingDetailOpen(false)
+    setSelectedHoldingKey(null)
+    setCurrentValue("")
+    setError("")
+  }
+
+  const handleSaveHolding = () => {
+    if (!selectedHolding) return
+
+    const parsedCurrentValue = Number(currentValue)
+
+    if (
+      !currentValue ||
+      Number.isNaN(parsedCurrentValue) ||
+      parsedCurrentValue < 0
+    ) {
+      setError("Please enter a valid current value.")
+      return
+    }
+
+    setHoldingValues((prev) => ({
+      ...prev,
+      [selectedHolding.key]: parsedCurrentValue,
+    }))
+
+    closeHoldingDetail()
+  }
+
+  const openInvestMore = () => {
+    if (!selectedHolding) return
+
+    setInvestMoreAmount("")
+    setInvestMoreDate(getTodayDate())
+    setError("")
+    setIsInvestMoreOpen(true)
+  }
+
+  const closeInvestMore = () => {
+    setIsInvestMoreOpen(false)
+    setInvestMoreAmount("")
+    setInvestMoreDate(getTodayDate())
+    setError("")
+  }
+
+  const handleInvestMore = () => {
+    if (!selectedHolding) return
+
+    const parsedAmount = Number(investMoreAmount)
+
+    if (!investMoreAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError("Please enter a valid amount.")
+      return
+    }
+
+    if (!investMoreDate) {
+      setError("Please select a date.")
+      return
+    }
+
+    const now = new Date().toISOString()
+
+    const newEntry: InvestmentEntry = {
+      id: generateId(),
+      name: selectedHolding.name,
+      type: selectedHolding.type,
+      amount: parsedAmount,
+      ticker: selectedHolding.ticker,
+      date: investMoreDate,
+      accountId: "main",
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    setEntries((prev) => [newEntry, ...prev])
+    closeInvestMore()
+    closeHoldingDetail()
+  }
+
+  const handleSubmenuClick = (tab: PortfolioTab | "add") => {
+    if (tab === "add") {
+      openCreateAssetModal()
+      return
+    }
+
+    setActiveTab(tab)
   }
 
   const fieldClass =
@@ -455,238 +619,349 @@ export default function Investments() {
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-3xl font-semibold tracking-tight">Investments</h1>
-            <p className="text-zinc-500 mt-2">Track your portfolio clearly.</p>
+          <header className="mb-5">
+            <h1 className="text-3xl font-semibold tracking-tight">Portfolio</h1>
+            <p className="text-zinc-500 mt-2">
+              See your holdings and performance.
+            </p>
           </header>
 
-          <section>
-  <button
-    type="button"
-    onClick={() => setIsOverviewExpanded((prev) => !prev)}
-    className={`w-full rounded-[30px] bg-black text-left transition-all duration-200 ease-out ${
-      isOverviewExpanded
-        ? "border border-[var(--accent)]/15 p-5"
-        : "border border-transparent p-0"
-    }`}
-  >
-    <p className="text-zinc-500 text-sm mb-2">Current Value</p>
-
-    <h2 className="text-5xl font-semibold tracking-tight text-white">
-      {formatCurrency(totals.currentTotal, currency)}
-    </h2>
-
-    {isOverviewExpanded && (
-      <div className="mt-5 grid gap-4">
-        <div className="flex items-center justify-between">
-          <span className="text-zinc-500 text-sm">Invested</span>
-          <span className="text-white text-sm font-medium">
-            {formatCurrency(totals.investedTotal, currency)}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-zinc-500 text-sm">Profit</span>
-          <span
-            className={`text-sm font-medium ${
-              totals.profit >= 0 ? "text-green-500" : "text-red-500"
-            }`}
-          >
-            {formatCurrency(totals.profit, currency)}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-zinc-500 text-sm">Performance</span>
-          <span
-            className={`text-sm font-medium ${
-              totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
-            }`}
-          >
-            {totals.profitPct >= 0 ? "+" : ""}
-            {totals.profitPct.toFixed(1)}%
-          </span>
-        </div>
-      </div>
-    )}
-  </button>
-</section>
-
-          <section className="mt-3">
-            <p className="text-sm text-zinc-400">{portfolioInsight}</p>
+          <section className="mb-5">
+            <p className="text-5xl font-semibold tracking-tight text-white">
+              {formatCurrency(totals.currentTotal, currency)}
+            </p>
           </section>
 
-          <div className="h-px bg-white/5 my-4" />
-
-          <section>
-            <Link
-              href="/investments/portfolio"
-              className="group block rounded-[28px] bg-zinc-900/55 border border-white/5 p-5 sm:p-6 transition-all duration-200 ease-out hover:bg-zinc-900/72 active:scale-[0.995]"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/[0.06] border border-[var(--accent)]/[0.14] text-[var(--accent)] transition-colors duration-200 group-hover:bg-[var(--accent)]/[0.08] group-hover:border-[var(--accent)]/[0.18]">
-                    <BriefcaseBusiness size={17} strokeWidth={2} />
-                  </div>
-
-                  <div>
-                    <p className="text-white text-base font-medium">Portfolio</p>
-                    <p className="text-zinc-500 text-sm mt-2">
-                      See your holdings and performance.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-zinc-600 transition-all duration-200 group-hover:text-zinc-400 group-hover:translate-x-[1px] group-hover:-translate-y-[1px]">
-                  <ArrowUpRight size={18} strokeWidth={2} />
-                </div>
-              </div>
-            </Link>
-          </section>
-
-          <div className="h-px bg-white/5 my-4" />
-
-          <section>
-            <div className="rounded-[26px] bg-zinc-900/45 border border-white/5 p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-zinc-300 text-sm font-medium">
-                    Add investment
-                  </p>
-                  <p className="text-zinc-500 text-sm mt-1">
-                    Add a new contribution to your portfolio.
-                  </p>
-                </div>
-
+          <nav className="mb-6 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-center gap-2 min-w-max">
+              {[
+                { value: "overview", label: "Overview" },
+                { value: "holdings", label: "Holdings" },
+                { value: "activity", label: "Activity" },
+              ].map((item) => (
                 <button
+                  key={item.value}
                   type="button"
-                  onClick={openCreateModal}
-                  className="relative z-10 select-none shrink-0 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-4 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation shadow-[0_4px_16px_rgba(245,166,35,0.14)]"
+                  onClick={() => handleSubmenuClick(item.value as PortfolioTab)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ease-out active:scale-[0.98] ${
+                    activeTab === item.value
+                      ? "bg-[var(--accent)] text-black"
+                      : "bg-zinc-900/55 border border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/75"
+                  }`}
                 >
-                  + Add
+                  {item.label}
                 </button>
-              </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => handleSubmenuClick("add")}
+                className="rounded-full px-4 py-2 text-sm font-medium bg-zinc-900/55 border border-[var(--accent)]/20 text-[var(--accent)] transition-all duration-200 ease-out hover:bg-zinc-900/75 active:scale-[0.98]"
+              >
+                Add Asset
+              </button>
             </div>
-          </section>
+          </nav>
 
-          <div className="h-px bg-white/5 my-4" />
-
-          <section className="mb-24">
-            <button
-              type="button"
-              onClick={() => setIsMonthlyOpen((prev) => !prev)}
-              className="w-full flex items-center justify-between text-left mb-4"
-            >
-              <p className="text-white text-sm font-medium">Monthly activity</p>
-              <span className="text-zinc-500 text-lg">
-                {isMonthlyOpen ? "⌃" : "⌄"}
-              </span>
-            </button>
-
-            {isMonthlyOpen && (
-              <>
-                <div className="mb-6">
-                  <select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                  >
-                    {availablePeriods.map((period) => (
-                      <option key={period} value={period}>
-                        {formatPeriodLabel(period)}
-                      </option>
-                    ))}
-                  </select>
+          {activeTab === "overview" && (
+            <section className="mb-24 space-y-6">
+              {groups.length === 0 ? (
+                <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
+                  <p className="text-zinc-200 text-sm">No holdings yet.</p>
+                  <p className="text-zinc-600 text-sm mt-2">
+                    Add your first asset to start building your portfolio.
+                  </p>
                 </div>
-
-                <section className="mb-6">
+              ) : (
+                <>
                   <div>
-                    <p className="text-white text-sm font-medium mb-2">
-                      Invested in {formatPeriodLabel(selectedPeriod)}
-                    </p>
-                    <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-                      <p className="text-xl font-semibold">
-                        {formatCurrency(periodInvested, currency)}
+                    <div className="mb-4">
+                      <p className="text-white text-sm font-medium">
+                        Allocation
+                      </p>
+                      <p className="text-zinc-600 text-xs mt-1">
+                        How your portfolio is distributed.
                       </p>
                     </div>
-                  </div>
-                </section>
 
-                {periodEntries.length === 0 ? (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                    <p className="text-zinc-300 text-sm">
-                      No investments added in this period.
-                    </p>
-                    <p className="text-zinc-600 text-sm mt-1">
-                      Select another month or add a new investment.
-                    </p>
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5 space-y-4">
+                      {groups.map((group) => (
+                        <div key={group.type}>
+                          <div className="flex items-center justify-between gap-4 mb-2">
+                            <span className="text-zinc-300 text-sm">
+                              {group.label}
+                            </span>
+                            <span className="text-white text-sm font-medium">
+                              {group.allocationPct.toFixed(0)}%
+                            </span>
+                          </div>
+
+                          <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[var(--accent)]/70"
+                              style={{
+                                width: `${Math.min(group.allocationPct, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsMonthlyListOpen((prev) => !prev)}
-                      className="w-full flex items-center justify-between text-left"
-                    >
+
+                  <div>
+                    <div className="mb-4">
                       <p className="text-white text-sm font-medium">
-                        Investment entries
+                        Quick summary
                       </p>
-                      <span className="text-zinc-500 text-lg">
-                        {isMonthlyListOpen ? "⌃" : "⌄"}
-                      </span>
-                    </button>
+                    </div>
 
-                    {isMonthlyListOpen && (
-                      <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                        {periodEntries.map((entry, index) => (
-                          <button
-                            key={entry.id}
-                            type="button"
-                            onClick={() => openEditEntryModal(entry)}
-                            className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                              index !== periodEntries.length - 1
-                                ? "border-b border-white/5"
-                                : ""
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-zinc-200 truncate">
-                                  {entry.name}
-                                </p>
-                                {entry.ticker && (
-                                  <span className="text-xs text-zinc-600 uppercase">
-                                    {entry.ticker}
-                                  </span>
-                                )}
-                              </div>
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5 grid gap-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500 text-sm">Holdings</span>
+                        <span className="text-white text-sm font-medium">
+                          {holdings.length}
+                        </span>
+                      </div>
 
-                              <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                                <span>{formatAssetType(entry.type)}</span>
-                              </div>
-                            </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500 text-sm">Invested</span>
+                        <span className="text-white text-sm font-medium">
+                          {formatCurrency(totals.investedTotal, currency)}
+                        </span>
+                      </div>
 
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500 text-sm">Top allocation</span>
+                        <span className="text-white text-sm font-medium">
+                          {topAllocation
+                            ? `${topAllocation.label} · ${topAllocation.allocationPct.toFixed(0)}%`
+                            : "None"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {activeTab === "holdings" && (
+            <section className="mb-24">
+              {groups.length === 0 ? (
+                <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
+                  <p className="text-zinc-200 text-sm">No holdings yet.</p>
+                  <p className="text-zinc-600 text-sm mt-2">
+                    Add assets to start building your portfolio.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                  {groups.map((group, groupIndex) => {
+                    const isExpanded = expandedGroup === group.type
+
+                    return (
+                      <div
+                        key={group.type}
+                        className={
+                          groupIndex !== groups.length - 1
+                            ? "border-b border-white/5"
+                            : ""
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedGroup((prev) =>
+                              prev === group.type ? null : group.type
+                            )
+                          }
+                          className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-zinc-200 font-medium">
+                              {group.label}
+                            </p>
+
+                            {!isExpanded && (
+                              <p className="text-xs text-zinc-600 mt-1">
+                                {group.holdings.length} holding
+                                {group.holdings.length === 1 ? "" : "s"}
+                              </p>
+                            )}
+                          </div>
+
+                          {!isExpanded && (
                             <div className="text-right shrink-0">
-                              <p className="text-zinc-300 text-sm">
-                                {formatCurrency(entry.amount, currency)}
+                              <p className="text-zinc-300 text-sm font-medium">
+                                {formatCurrency(group.currentValue, currency)}
+                              </p>
+                              <p
+                                className={`text-xs mt-1 ${
+                                  group.profitPct >= 0
+                                    ? "text-green-500"
+                                    : "text-red-500"
+                                }`}
+                              >
+                                {group.profitPct >= 0 ? "+" : ""}
+                                {group.profitPct.toFixed(1)}%
                               </p>
                             </div>
-                          </button>
-                        ))}
+                          )}
+
+                          <span className="text-zinc-500 text-lg">
+                            {isExpanded ? "⌃" : "⌄"}
+                          </span>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="px-5 pb-5">
+                            <div className="space-y-1">
+                              {group.holdings.map((holding) => (
+                                <button
+                                  key={holding.key}
+                                  type="button"
+                                  onClick={() => openHoldingDetail(holding)}
+                                  className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-zinc-200 truncate">
+                                      {holding.name}
+                                    </p>
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <p className="text-zinc-300 text-sm font-medium">
+                                      {formatCurrency(
+                                        holding.currentValue,
+                                        currency
+                                      )}
+                                    </p>
+                                    <p
+                                      className={`text-xs mt-1 ${
+                                        holding.profitPct >= 0
+                                          ? "text-green-500"
+                                          : "text-red-500"
+                                      }`}
+                                    >
+                                      {holding.profitPct >= 0 ? "+" : ""}
+                                      {holding.profitPct.toFixed(1)}%
+                                    </p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === "activity" && (
+            <section className="mb-24">
+              <div className="mb-6">
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
+                >
+                  {availablePeriods.map((period) => (
+                    <option key={period} value={period}>
+                      {formatPeriodLabel(period)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-white text-sm font-medium mb-2">
+                  Invested in {formatPeriodLabel(selectedPeriod)}
+                </p>
+                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
+                  <p className="text-xl font-semibold">
+                    {formatCurrency(periodInvested, currency)}
+                  </p>
+                </div>
+              </div>
+
+              {periodEntries.length === 0 ? (
+                <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
+                  <p className="text-zinc-300 text-sm">
+                    No investments added in this period.
+                  </p>
+                  <p className="text-zinc-600 text-sm mt-1">
+                    Select another month or add a new asset.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsActivityListOpen((prev) => !prev)}
+                    className="w-full flex items-center justify-between text-left"
+                  >
+                    <p className="text-white text-sm font-medium">
+                      Investment entries
+                    </p>
+                    <span className="text-zinc-500 text-lg">
+                      {isActivityListOpen ? "⌃" : "⌄"}
+                    </span>
+                  </button>
+
+                  {isActivityListOpen && (
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                      {periodEntries.map((entry, index) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onClick={() => openEditEntryModal(entry)}
+                          className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                            index !== periodEntries.length - 1
+                              ? "border-b border-white/5"
+                              : ""
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-zinc-200 truncate">
+                                {entry.name}
+                              </p>
+                              {entry.ticker && (
+                                <span className="text-xs text-zinc-600 uppercase">
+                                  {entry.ticker}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
+                              <span>{formatAssetType(entry.type)}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <p className="text-zinc-300 text-sm">
+                              {formatCurrency(entry.amount, currency)}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </main>
 
-      {isModalOpen && (
+      {isAssetModalOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
-          onClick={closeModal}
+          onClick={closeAssetModal}
         >
           <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
             <div
@@ -695,12 +970,12 @@ export default function Investments() {
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
-                  {editingEntryId ? "Edit investment" : "New investment"}
+                  {editingEntryId ? "Edit investment" : "New asset"}
                 </p>
 
                 <button
                   type="button"
-                  onClick={closeModal}
+                  onClick={closeAssetModal}
                   className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
                 >
                   Close
@@ -783,21 +1058,192 @@ export default function Investments() {
 
                 <button
                   type="button"
-                  onClick={handleSubmit}
+                  onClick={handleAssetSubmit}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
                 >
-                  {editingEntryId ? "Save investment" : "Add investment"}
+                  {editingEntryId ? "Save investment" : "Add asset"}
                 </button>
 
                 {editingEntryId && (
                   <button
                     type="button"
-                    onClick={handleDelete}
+                    onClick={handleDeleteEntry}
                     className="w-full text-center text-red-400 text-xs py-1.5 mt-1 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
                   >
                     Delete investment
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isHoldingDetailOpen && selectedHolding && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={closeHoldingDetail}
+        >
+          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-white text-sm font-medium">Holding detail</p>
+
+                <button
+                  type="button"
+                  onClick={closeHoldingDetail}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="grid gap-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-2xl font-semibold tracking-tight">
+                      {selectedHolding.name}
+                    </h2>
+
+                    {selectedHolding.ticker && (
+                      <span className="text-xs text-zinc-600 uppercase">
+                        {selectedHolding.ticker}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-zinc-500 text-sm mt-2">
+                    {formatAssetType(selectedHolding.type)}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
+                    <p className="text-zinc-500 text-xs mb-2">Invested</p>
+                    <p className="text-white text-sm font-medium">
+                      {formatCurrency(selectedHolding.invested, currency)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
+                    <p className="text-zinc-500 text-xs mb-2">Performance</p>
+                    <p
+                      className={`text-sm font-medium ${
+                        selectedHolding.profitPct >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {selectedHolding.profitPct >= 0 ? "+" : ""}
+                      {selectedHolding.profitPct.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-500 mb-2 block">
+                    Current value
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={currentValue}
+                    onChange={(e) => setCurrentValue(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+
+                <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
+                  <p className="text-zinc-500 text-xs mb-2">Profit / Loss</p>
+                  <p
+                    className={`text-sm font-medium ${
+                      selectedHolding.profit >= 0
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {formatCurrency(selectedHolding.profit, currency)}
+                  </p>
+                </div>
+
+                {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
+
+                <button
+                  type="button"
+                  onClick={openInvestMore}
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
+                >
+                  Invest more
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveHolding}
+                  className="w-full text-center text-zinc-400 text-sm py-1.5 transition-colors duration-200 ease-out hover:text-white cursor-pointer"
+                >
+                  Save holding
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isInvestMoreOpen && selectedHolding && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={closeInvestMore}
+        >
+          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-white text-sm font-medium">
+                  Invest more in {selectedHolding.name}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={closeInvestMore}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="grid gap-3">
+                <input
+                  placeholder="Amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={investMoreAmount}
+                  onChange={(e) => setInvestMoreAmount(e.target.value)}
+                  className={fieldClass}
+                />
+
+                <input
+                  type="date"
+                  value={investMoreDate}
+                  onChange={(e) => setInvestMoreDate(e.target.value)}
+                  className={fieldClass}
+                />
+
+                {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
+
+                <button
+                  type="button"
+                  onClick={handleInvestMore}
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
+                >
+                  Add contribution
+                </button>
               </div>
             </div>
           </div>
