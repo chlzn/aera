@@ -174,21 +174,22 @@ export default function Investments() {
                 amount: asset.invested || 0,
                 ticker: asset.ticker,
                 notes: asset.notes,
-                date: asset.createdAt ? asset.createdAt.slice(0, 10) : getTodayDate(),
+                date: asset.createdAt
+                  ? asset.createdAt.slice(0, 10)
+                  : getTodayDate(),
                 accountId: asset.accountId || "main",
                 createdAt: asset.createdAt || new Date().toISOString(),
                 updatedAt: asset.updatedAt || new Date().toISOString(),
               })
             )
 
-            const migratedHoldingValues = parsedLegacy.reduce<Record<string, number>>(
-              (acc, asset: LegacyInvestment) => {
-                const key = getHoldingKey(asset.name, asset.ticker)
-                acc[key] = asset.currentValue || asset.invested || 0
-                return acc
-              },
-              {}
-            )
+            const migratedHoldingValues = parsedLegacy.reduce<
+              Record<string, number>
+            >((acc, asset: LegacyInvestment) => {
+              const key = getHoldingKey(asset.name, asset.ticker)
+              acc[key] = asset.currentValue || asset.invested || 0
+              return acc
+            }, {})
 
             setEntries(migratedEntries)
             setHoldingValues(migratedHoldingValues)
@@ -459,7 +460,7 @@ export default function Investments() {
             <button
               type="button"
               onClick={() => setIsOverviewExpanded((prev) => !prev)}
-              className={`w-full rounded-[30px] bg-zinc-900/72 p-8 text-left shadow-[0_14px_40px_rgba(0,0,0,0.28)] transition-all duration-200 ease-out ${
+              className={`w-full rounded-[30px] bg-black p-8 text-left shadow-[0_14px_40px_rgba(0,0,0,0.28)] transition-all duration-200 ease-out ${
                 isOverviewExpanded
                   ? "border border-[var(--accent)]/15"
                   : "border border-white/5"
@@ -467,7 +468,7 @@ export default function Investments() {
             >
               <p className="text-zinc-500 text-sm mb-3">Current Value</p>
 
-              <h2 className="text-5xl font-semibold tracking-tight">
+              <h2 className="text-5xl font-semibold tracking-tight text-white">
                 {formatCurrency(totals.currentTotal, currency)}
               </h2>
 
@@ -513,11 +514,11 @@ export default function Investments() {
             </button>
           </section>
 
-          <section className="mt-6">
+          <section className="mt-4">
             <p className="text-sm text-zinc-400">{portfolioInsight}</p>
           </section>
 
-          <div className="h-px bg-white/5 my-6" />
+          <div className="h-px bg-white/5 my-5" />
 
           <section>
             <Link

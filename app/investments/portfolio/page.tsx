@@ -214,6 +214,7 @@ export default function PortfolioPage() {
           (sum, holding) => sum + holding.invested,
           0
         )
+
         const currentValue = groupHoldings.reduce(
           (sum, holding) => sum + holding.currentValue,
           0
@@ -233,6 +234,28 @@ export default function PortfolioPage() {
         }
       })
       .filter((group) => group.holdings.length > 0)
+  }, [holdings])
+
+  const totals = useMemo(() => {
+    const investedTotal = holdings.reduce(
+      (sum, holding) => sum + holding.invested,
+      0
+    )
+
+    const currentTotal = holdings.reduce(
+      (sum, holding) => sum + holding.currentValue,
+      0
+    )
+
+    const profit = currentTotal - investedTotal
+    const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0
+
+    return {
+      investedTotal,
+      currentTotal,
+      profit,
+      profitPct,
+    }
   }, [holdings])
 
   useEffect(() => {
@@ -366,6 +389,50 @@ export default function PortfolioPage() {
             </p>
           </header>
 
+          {groups.length > 0 && (
+            <section className="mb-6">
+              <div className="rounded-[30px] bg-black border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
+                <p className="text-zinc-500 text-sm mb-3">Portfolio Value</p>
+
+                <h2 className="text-5xl font-semibold tracking-tight text-white">
+                  {formatCurrency(totals.currentTotal, currency)}
+                </h2>
+
+                <div className="mt-5 flex gap-6 flex-wrap text-sm">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Profit</span>
+                    <span
+                      className={`font-medium ${
+                        totals.profit >= 0 ? "text-green-500" : "text-red-500"
+                      }`}
+                    >
+                      {formatCurrency(totals.profit, currency)}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Performance</span>
+                    <span
+                      className={`font-medium ${
+                        totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
+                      }`}
+                    >
+                      {totals.profitPct >= 0 ? "+" : ""}
+                      {totals.profitPct.toFixed(1)}%
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Invested</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(totals.investedTotal, currency)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {groups.length === 0 ? (
             <section className="mb-10">
               <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
@@ -453,7 +520,10 @@ export default function PortfolioPage() {
 
                                 <div className="text-right shrink-0">
                                   <p className="text-zinc-300 text-sm font-medium">
-                                    {formatCurrency(holding.currentValue, currency)}
+                                    {formatCurrency(
+                                      holding.currentValue,
+                                      currency
+                                    )}
                                   </p>
                                   <p
                                     className={`text-xs mt-1 ${
