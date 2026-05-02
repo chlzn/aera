@@ -80,6 +80,39 @@ function getTodayDate() {
   return `${year}-${month}-${day}`
 }
 
+function getEndOfPeriodDate(periodKey: string) {
+  const [year, month] = periodKey.split("-").map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(
+    2,
+    "0"
+  )}`
+}
+
+function getPeriodRange(startPeriod: string, endPeriod: string) {
+  const [startYear, startMonth] = startPeriod.split("-").map(Number)
+  const [endYear, endMonth] = endPeriod.split("-").map(Number)
+
+  const periods: string[] = []
+
+  let year = startYear
+  let month = startMonth
+
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    periods.push(`${year}-${String(month).padStart(2, "0")}`)
+
+    month += 1
+
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+
+  return periods
+}
+
 function isDue(date: string) {
   return date <= getTodayDate()
 }
@@ -100,14 +133,16 @@ function getInsight({
   monthlyResult,
   portfolioValue,
   portfolioProfit,
+  cashBalance,
 }: {
   income: number
   expenses: number
   monthlyResult: number
   portfolioValue: number
   portfolioProfit: number
+  cashBalance: number
 }) {
-  if (income <= 0 && expenses <= 0 && portfolioValue <= 0) {
+  if (income <= 0 && expenses <= 0 && portfolioValue <= 0 && cashBalance <= 0) {
     return "Start tracking your money to see your financial picture clearly."
   }
 
@@ -131,6 +166,10 @@ function getInsight({
     return "Your portfolio is above your invested capital."
   }
 
+  if (cashBalance > 0) {
+    return "You still have cash available from previous months."
+  }
+
   return "Your financial picture is stable, but worth watching closely."
 }
 
@@ -141,9 +180,13 @@ export default function Home() {
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
   const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
 
-  const [investmentEntries, setInvestmentEntries] = useState<InvestmentEntry[]>([])
+  const [investmentEntries, setInvestmentEntries] = useState<InvestmentEntry[]>(
+    []
+  )
   const [holdingValues, setHoldingValues] = useState<Record<string, number>>({})
-  const [legacyInvestments, setLegacyInvestments] = useState<LegacyInvestment[]>([])
+  const [legacyInvestments, setLegacyInvestments] = useState<
+    LegacyInvestment[]
+  >([])
 
   const [hydrated, setHydrated] = useState(false)
 
@@ -207,26 +250,26 @@ export default function Home() {
     }
   }, [])
 
-  const selectedPeriod = getCurrentPeriodKey()
+  const currentPeriod = getCurrentPeriodKey()
 
-  const manualPeriodEntries = useMemo<DisplayEntry[]>(() => {
+  const monthlyManualEntries = useMemo<DisplayEntry[]>(() => {
     return entries
-      .filter((entry) => entry.date.slice(0, 7) === selectedPeriod)
+      .filter((entry) => entry.date.slice(0, 7) === currentPeriod)
       .map((entry) => ({
         ...entry,
         source: "manual" as const,
       }))
-  }, [entries, selectedPeriod])
+  }, [entries, currentPeriod])
 
-  const generatedPeriodEntries = useMemo<DisplayEntry[]>(() => {
-    return generateEntriesForPeriod(templates, selectedPeriod).map((entry) => ({
+  const monthlyGeneratedEntries = useMemo<DisplayEntry[]>(() => {
+    return generateEntriesForPeriod(templates, currentPeriod).map((entry) => ({
       ...entry,
       source: "automation" as const,
     }))
-  }, [templates, selectedPeriod])
+  }, [templates, currentPeriod])
 
-  const confirmedGeneratedEntries = useMemo(() => {
-    return generatedPeriodEntries.filter((entry) => {
+  const monthlyConfirmedGeneratedEntries = useMemo(() => {
+    return monthlyGeneratedEntries.filter((entry) => {
       const behavior = entry.paymentBehavior || "manual"
 
       if (behavior === "auto_paid") {
@@ -235,25 +278,101 @@ export default function Home() {
 
       return paidScheduledIds.includes(entry.id)
     })
-  }, [generatedPeriodEntries, paidScheduledIds])
+  }, [monthlyGeneratedEntries, paidScheduledIds])
 
-  const periodEntries = useMemo(() => {
-    return [...manualPeriodEntries, ...confirmedGeneratedEntries]
-  }, [manualPeriodEntries, confirmedGeneratedEntries])
+  const monthlyEntries = useMemo(() => {
+    return [...monthlyManualEntries, ...monthlyConfirmedGeneratedEntries]
+  }, [monthlyManualEntries, monthlyConfirmedGeneratedEntries])
 
   const monthlyIncome = useMemo(() => {
-    return periodEntries
+    return monthlyEntries
       .filter((entry) => entry.type === "income")
       .reduce((sum, entry) => sum + entry.amount, 0)
-  }, [periodEntries])
+  }, [monthlyEntries])
 
   const monthlyExpenses = useMemo(() => {
-    return periodEntries
+    return monthlyEntries
       .filter((entry) => entry.type === "expense")
       .reduce((sum, entry) => sum + entry.amount, 0)
-  }, [periodEntries])
+  }, [monthlyEntries])
 
   const monthlyResult = monthlyIncome - monthlyExpenses
+
+  const earliestPeriod = useMemo(() => {
+    const periods: string[] = []
+
+    entries.forEach((entry) => {
+      if (entry.date) periods.push(entry.date.slice(0, 7))
+    })
+
+    templates.forEach((template) => {
+      if (template.automation.startDate) {
+        periods.push(template.automation.startDate.slice(0, 7))
+      }
+    })
+
+    if (periods.length === 0) return currentPeriod
+
+    return periods.sort()[0]
+  }, [entries, templates, currentPeriod])
+
+  const cumulativePeriodKeys = useMemo(() => {
+    return getPeriodRange(earliestPeriod, currentPeriod)
+  }, [earliestPeriod, currentPeriod])
+
+  const currentPeriodCutoffDate = useMemo(() => {
+    return currentPeriod === getCurrentPeriodKey()
+      ? getTodayDate()
+      : getEndOfPeriodDate(currentPeriod)
+  }, [currentPeriod])
+
+  const cumulativeManualEntries = useMemo<DisplayEntry[]>(() => {
+    return entries
+      .filter((entry) => entry.date <= currentPeriodCutoffDate)
+      .map((entry) => ({
+        ...entry,
+        source: "manual" as const,
+      }))
+  }, [entries, currentPeriodCutoffDate])
+
+  const cumulativeGeneratedEntries = useMemo<DisplayEntry[]>(() => {
+    return cumulativePeriodKeys.flatMap((period) =>
+      generateEntriesForPeriod(templates, period).map((entry) => ({
+        ...entry,
+        source: "automation" as const,
+      }))
+    )
+  }, [templates, cumulativePeriodKeys])
+
+  const cumulativeConfirmedGeneratedEntries = useMemo(() => {
+    return cumulativeGeneratedEntries.filter((entry) => {
+      if (entry.date > currentPeriodCutoffDate) return false
+
+      const behavior = entry.paymentBehavior || "manual"
+
+      if (behavior === "auto_paid") {
+        return isDue(entry.date)
+      }
+
+      return paidScheduledIds.includes(entry.id)
+    })
+  }, [cumulativeGeneratedEntries, paidScheduledIds, currentPeriodCutoffDate])
+
+  const cumulativeEntries = useMemo(() => {
+    return [...cumulativeManualEntries, ...cumulativeConfirmedGeneratedEntries]
+  }, [cumulativeManualEntries, cumulativeConfirmedGeneratedEntries])
+
+  const cashBalance = useMemo(() => {
+    const totalIncome = cumulativeEntries
+      .filter((entry) => entry.type === "income")
+      .reduce((sum, entry) => sum + entry.amount, 0)
+
+    const totalExpenses = cumulativeEntries
+      .filter((entry) => entry.type === "expense")
+      .reduce((sum, entry) => sum + entry.amount, 0)
+
+    return totalIncome - totalExpenses
+  }, [cumulativeEntries])
 
   const portfolioTotals = useMemo(() => {
     if (investmentEntries.length > 0) {
@@ -273,7 +392,9 @@ export default function Home() {
             0
           )
           const currentValue =
-            typeof holdingValues[key] === "number" ? holdingValues[key] : invested
+            typeof holdingValues[key] === "number"
+              ? holdingValues[key]
+              : invested
 
           return {
             invested: acc.invested + invested,
@@ -299,12 +420,11 @@ export default function Home() {
 
   const portfolioProfit = portfolioTotals.currentValue - portfolioTotals.invested
 
-  const cash = monthlyResult
   const portfolio = portfolioTotals.currentValue
-  const netWorth = cash + portfolio
+  const netWorth = cashBalance + portfolio
 
   const cashPct =
-    netWorth > 0 ? Math.max(0, Math.min(100, (cash / netWorth) * 100)) : 0
+    netWorth > 0 ? Math.max(0, Math.min(100, (cashBalance / netWorth) * 100)) : 0
   const portfolioPct =
     netWorth > 0 ? Math.max(0, Math.min(100, (portfolio / netWorth) * 100)) : 0
 
@@ -314,6 +434,7 @@ export default function Home() {
     monthlyResult,
     portfolioValue: portfolio,
     portfolioProfit,
+    cashBalance,
   })
 
   const statusLabel = useMemo(() => {
@@ -325,9 +446,16 @@ export default function Home() {
     if (monthlyIncome > 0 && monthlyExpenses > monthlyIncome) {
       return "High spending"
     }
-    if (portfolio > cash) return "Asset heavy"
+    if (portfolio > cashBalance) return "Asset heavy"
     return "Tracking"
-  }, [monthlyResult, portfolioProfit, monthlyIncome, monthlyExpenses, portfolio, cash])
+  }, [
+    monthlyResult,
+    portfolioProfit,
+    monthlyIncome,
+    monthlyExpenses,
+    portfolio,
+    cashBalance,
+  ])
 
   return (
     <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
@@ -336,7 +464,9 @@ export default function Home() {
           <h1 className="text-4xl font-semibold tracking-tight">
             Aera<span className="text-[var(--accent)]">.</span>
           </h1>
-          <p className="text-zinc-500 mt-2">Your financial life, clearly understood.</p>
+          <p className="text-zinc-500 mt-2">
+            Your financial life, clearly understood.
+          </p>
         </header>
 
         <section className="mb-8">
@@ -349,7 +479,9 @@ export default function Home() {
           </div>
 
           <h2 className="text-6xl font-semibold tracking-tight text-white">
-            {hydrated ? formatCurrency(netWorth, currency) : formatCurrency(0, currency)}
+            {hydrated
+              ? formatCurrency(netWorth, currency)
+              : formatCurrency(0, currency)}
           </h2>
         </section>
 
@@ -361,7 +493,7 @@ export default function Home() {
                 <p className="text-zinc-500 text-xs">Cash</p>
               </div>
               <p className="text-white text-sm font-medium">
-                {formatCurrency(cash, currency)}
+                {formatCurrency(cashBalance, currency)}
               </p>
             </div>
 
@@ -399,7 +531,9 @@ export default function Home() {
         <div className="h-px bg-white/5 mb-7" />
 
         <section className="mb-8">
-          <p className="text-white text-sm font-medium mb-2">Financial status</p>
+          <p className="text-white text-sm font-medium mb-2">
+            Financial status
+          </p>
           <p className="text-zinc-400 text-sm leading-relaxed">{insight}</p>
         </section>
 

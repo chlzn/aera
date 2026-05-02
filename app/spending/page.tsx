@@ -59,7 +59,9 @@ type DisplayEntry = Entry & {
   paymentBehavior?: PaymentBehavior
 }
 
-type SpendingGroup = {
+type CashFlowGroup = {
+  key: string
+  type: EntryType
   category: EntryCategory
   total: number
   entries: DisplayEntry[]
@@ -112,6 +114,7 @@ const categoryIcons: Record<EntryCategory, LucideIcon> = {
   other: Circle,
 }
 
+const defaultIncomeCategoryOrder = incomeCategories.map((item) => item.value)
 const defaultExpenseCategoryOrder = expenseCategories.map((item) => item.value)
 
 function formatCurrency(value: number, currency = "USD") {
@@ -149,39 +152,6 @@ function getTodayDate() {
   return `${year}-${month}-${day}`
 }
 
-function generateId() {
-  if (
-    typeof globalThis !== "undefined" &&
-    globalThis.crypto &&
-    typeof globalThis.crypto.randomUUID === "function"
-  ) {
-    return globalThis.crypto.randomUUID()
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
-}
-
-function formatRecurringFrequencyLabel(frequency: "monthly" | "weekly") {
-  return frequency === "monthly" ? "every month" : "every week"
-}
-
-function formatInstallmentFrequencyLabel(
-  frequency: "monthly" | "weekly" | "biweekly"
-) {
-  if (frequency === "monthly") return "every month"
-  if (frequency === "weekly") return "every week"
-  return "every 2 weeks"
-}
-
-function isDue(date: string) {
-  return date <= getTodayDate()
-}
-
-function getCategorySortIndex(category: EntryCategory, order: EntryCategory[]) {
-  const index = order.indexOf(category)
-  return index === -1 ? 999 : index
-}
-
 function getEndOfPeriodDate(periodKey: string) {
   const [year, month] = periodKey.split("-").map(Number)
   const lastDay = new Date(year, month, 0).getDate()
@@ -215,6 +185,43 @@ function getPeriodRange(startPeriod: string, endPeriod: string) {
   return periods
 }
 
+function generateId() {
+  if (
+    typeof globalThis !== "undefined" &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+}
+
+function formatRecurringFrequencyLabel(frequency: "monthly" | "weekly") {
+  return frequency === "monthly" ? "every month" : "every week"
+}
+
+function formatInstallmentFrequencyLabel(
+  frequency: "monthly" | "weekly" | "biweekly"
+) {
+  if (frequency === "monthly") return "every month"
+  if (frequency === "weekly") return "every week"
+  return "every 2 weeks"
+}
+
+function isDue(date: string) {
+  return date <= getTodayDate()
+}
+
+function getCategorySortIndex(category: EntryCategory, order: EntryCategory[]) {
+  const index = order.indexOf(category)
+  return index === -1 ? 999 : index
+}
+
+function getGroupKey(type: EntryType, category: EntryCategory) {
+  return `${type}-${category}`
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
 
@@ -229,9 +236,8 @@ export default function Spending() {
   )
   const [entriesHydrated, setEntriesHydrated] = useState(false)
 
-  const [expandedCategory, setExpandedCategory] = useState<EntryCategory | null>(
-    null
-  )
+  const [expandedGroupKey, setExpandedGroupKey] = useState<string | null>(null)
+  const [isActivityOpen, setIsActivityOpen] = useState(true)
 
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
@@ -330,16 +336,23 @@ export default function Spending() {
   ])
 
   useEffect(() => {
-    const defaultCategory =
-      type === "income" ? incomeCategories[0].value : expenseCategories[0].value
-    setCategory(defaultCategory)
-  }, [type])
+    const validCategories =
+      type === "income" ? incomeCategories : expenseCategories
+
+    const isCurrentCategoryValid = validCategories.some(
+      (item) => item.value === category
+    )
+
+    if (!isCurrentCategoryValid) {
+      setCategory(validCategories[0].value)
+    }
+  }, [type, category])
 
   const availablePeriods = useMemo(() => {
     return getAvailablePeriodsFromCurrentYear()
   }, [])
 
-  const effectiveCategoryOrder = useMemo(() => {
+  const effectiveExpenseCategoryOrder = useMemo(() => {
     const existing = customCategoryOrder.filter((categoryName) =>
       defaultExpenseCategoryOrder.includes(categoryName)
     )
@@ -359,86 +372,6 @@ export default function Spending() {
         source: "manual" as const,
       }))
   }, [entries, selectedPeriod])
-
-  const earliestPeriod = useMemo(() => {
-  const periods: string[] = []
-
-  entries.forEach((entry) => {
-    if (entry.date) periods.push(entry.date.slice(0, 7))
-  })
-
-  templates.forEach((template) => {
-    if (template.automation.startDate) {
-      periods.push(template.automation.startDate.slice(0, 7))
-    }
-  })
-
-  if (periods.length === 0) return selectedPeriod
-
-  return periods.sort()[0]
-}, [entries, templates, selectedPeriod])
-
-const cumulativePeriodKeys = useMemo(() => {
-  return getPeriodRange(earliestPeriod, selectedPeriod)
-}, [earliestPeriod, selectedPeriod])
-
-const cumulativeGeneratedEntries = useMemo<DisplayEntry[]>(() => {
-  return cumulativePeriodKeys.flatMap((period) =>
-    generateEntriesForPeriod(templates, period).map((entry) => ({
-      ...entry,
-      source: "automation" as const,
-    }))
-  )
-}, [templates, cumulativePeriodKeys])
-
-const selectedPeriodCutoffDate = useMemo(() => {
-  const currentPeriod = getCurrentPeriodKey()
-
-  if (selectedPeriod === currentPeriod) {
-    return getTodayDate()
-  }
-
-  return getEndOfPeriodDate(selectedPeriod)
-}, [selectedPeriod])
-
-const cumulativeManualEntries = useMemo<DisplayEntry[]>(() => {
-  return entries
-    .filter((entry) => entry.date <= selectedPeriodCutoffDate)
-    .map((entry) => ({
-      ...entry,
-      source: "manual" as const,
-    }))
-}, [entries, selectedPeriodCutoffDate])
-
-const cumulativeConfirmedGeneratedEntries = useMemo(() => {
-  return cumulativeGeneratedEntries.filter((entry) => {
-    if (entry.date > selectedPeriodCutoffDate) return false
-
-    const behavior = entry.paymentBehavior || "manual"
-
-    if (behavior === "auto_paid") {
-      return isDue(entry.date)
-    }
-
-    return paidScheduledIds.includes(entry.id)
-  })
-}, [cumulativeGeneratedEntries, paidScheduledIds, selectedPeriodCutoffDate])
-
-const cumulativeEntries = useMemo(() => {
-  return [...cumulativeManualEntries, ...cumulativeConfirmedGeneratedEntries]
-}, [cumulativeManualEntries, cumulativeConfirmedGeneratedEntries])
-
-const cashBalance = useMemo(() => {
-  const totalIncome = cumulativeEntries
-    .filter((entry) => entry.type === "income")
-    .reduce((sum, entry) => sum + entry.amount, 0)
-
-  const totalExpenses = cumulativeEntries
-    .filter((entry) => entry.type === "expense")
-    .reduce((sum, entry) => sum + entry.amount, 0)
-
-  return totalIncome - totalExpenses
-}, [cumulativeEntries])
 
   const generatedPeriodEntries = useMemo<DisplayEntry[]>(() => {
     return generateEntriesForPeriod(templates, selectedPeriod).map((entry) => ({
@@ -481,6 +414,14 @@ const cashBalance = useMemo(() => {
     })
   }, [manualPeriodEntries, confirmedGeneratedEntries])
 
+  const activityEntries = useMemo(() => {
+    return [...periodEntries].sort((a, b) => {
+      const dateDiff = b.date.localeCompare(a.date)
+      if (dateDiff !== 0) return dateDiff
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+  }, [periodEntries])
+
   const income = periodEntries
     .filter((entry) => entry.type === "income")
     .reduce((acc, entry) => acc + entry.amount, 0)
@@ -491,10 +432,137 @@ const cashBalance = useMemo(() => {
 
   const net = income - expenses
 
+  const earliestPeriod = useMemo(() => {
+    const periods: string[] = []
+
+    entries.forEach((entry) => {
+      if (entry.date) periods.push(entry.date.slice(0, 7))
+    })
+
+    templates.forEach((template) => {
+      if (template.automation.startDate) {
+        periods.push(template.automation.startDate.slice(0, 7))
+      }
+    })
+
+    if (periods.length === 0) return selectedPeriod
+
+    return periods.sort()[0]
+  }, [entries, templates, selectedPeriod])
+
+  const cumulativePeriodKeys = useMemo(() => {
+    return getPeriodRange(earliestPeriod, selectedPeriod)
+  }, [earliestPeriod, selectedPeriod])
+
+  const selectedPeriodCutoffDate = useMemo(() => {
+    const currentPeriod = getCurrentPeriodKey()
+
+    if (selectedPeriod === currentPeriod) {
+      return getTodayDate()
+    }
+
+    return getEndOfPeriodDate(selectedPeriod)
+  }, [selectedPeriod])
+
+  const cumulativeManualEntries = useMemo<DisplayEntry[]>(() => {
+    return entries
+      .filter((entry) => entry.date <= selectedPeriodCutoffDate)
+      .map((entry) => ({
+        ...entry,
+        source: "manual" as const,
+      }))
+  }, [entries, selectedPeriodCutoffDate])
+
+  const cumulativeGeneratedEntries = useMemo<DisplayEntry[]>(() => {
+    return cumulativePeriodKeys.flatMap((period) =>
+      generateEntriesForPeriod(templates, period).map((entry) => ({
+        ...entry,
+        source: "automation" as const,
+      }))
+    )
+  }, [templates, cumulativePeriodKeys])
+
+  const cumulativeConfirmedGeneratedEntries = useMemo(() => {
+    return cumulativeGeneratedEntries.filter((entry) => {
+      if (entry.date > selectedPeriodCutoffDate) return false
+
+      const behavior = entry.paymentBehavior || "manual"
+
+      if (behavior === "auto_paid") {
+        return isDue(entry.date)
+      }
+
+      return paidScheduledIds.includes(entry.id)
+    })
+  }, [cumulativeGeneratedEntries, paidScheduledIds, selectedPeriodCutoffDate])
+
+  const cumulativeEntries = useMemo(() => {
+    return [...cumulativeManualEntries, ...cumulativeConfirmedGeneratedEntries]
+  }, [cumulativeManualEntries, cumulativeConfirmedGeneratedEntries])
+
+  const cashBalance = useMemo(() => {
+    const totalIncome = cumulativeEntries
+      .filter((entry) => entry.type === "income")
+      .reduce((sum, entry) => sum + entry.amount, 0)
+
+    const totalExpenses = cumulativeEntries
+      .filter((entry) => entry.type === "expense")
+      .reduce((sum, entry) => sum + entry.amount, 0)
+
+    return totalIncome - totalExpenses
+  }, [cumulativeEntries])
+
   const currentCategories =
     type === "income" ? incomeCategories : expenseCategories
 
-  const spendingGroups = useMemo<SpendingGroup[]>(() => {
+  const incomeGroups = useMemo<CashFlowGroup[]>(() => {
+    const incomeEntries = periodEntries.filter((entry) => entry.type === "income")
+    const usedCategories = new Set<EntryCategory>()
+
+    entries.forEach((entry) => {
+      if (entry.type === "income") usedCategories.add(entry.category)
+    })
+
+    templates.forEach((template) => {
+      if (template.type === "income") usedCategories.add(template.category)
+    })
+
+    incomeEntries.forEach((entry) => usedCategories.add(entry.category))
+
+    const categories = Array.from(usedCategories).filter((item) =>
+      defaultIncomeCategoryOrder.includes(item)
+    )
+
+    return categories
+      .map((categoryName) => {
+        const groupEntries = incomeEntries
+          .filter((entry) => entry.category === categoryName)
+          .sort((a, b) => b.date.localeCompare(a.date))
+
+        const total = groupEntries.reduce((sum, entry) => sum + entry.amount, 0)
+
+        return {
+          key: getGroupKey("income", categoryName),
+          type: "income" as const,
+          category: categoryName,
+          total,
+          entries: groupEntries,
+          isActiveThisMonth: groupEntries.length > 0,
+        }
+      })
+      .sort((a, b) => {
+        if (a.isActiveThisMonth && !b.isActiveThisMonth) return -1
+        if (!a.isActiveThisMonth && b.isActiveThisMonth) return 1
+        if (a.total !== b.total) return b.total - a.total
+
+        return (
+          getCategorySortIndex(a.category, defaultIncomeCategoryOrder) -
+          getCategorySortIndex(b.category, defaultIncomeCategoryOrder)
+        )
+      })
+  }, [entries, templates, periodEntries])
+
+  const expenseGroups = useMemo<CashFlowGroup[]>(() => {
     const expenseEntries = periodEntries.filter(
       (entry) => entry.type === "expense"
     )
@@ -502,25 +570,17 @@ const cashBalance = useMemo(() => {
     const usedCategories = new Set<EntryCategory>()
 
     entries.forEach((entry) => {
-      if (entry.type === "expense") {
-        usedCategories.add(entry.category)
-      }
+      if (entry.type === "expense") usedCategories.add(entry.category)
     })
 
     templates.forEach((template) => {
-      if (template.type === "expense") {
-        usedCategories.add(template.category)
-      }
+      if (template.type === "expense") usedCategories.add(template.category)
     })
 
-    expenseEntries.forEach((entry) => {
-      usedCategories.add(entry.category)
-    })
+    expenseEntries.forEach((entry) => usedCategories.add(entry.category))
 
     scheduledEntries.forEach((entry) => {
-      if (entry.type === "expense") {
-        usedCategories.add(entry.category)
-      }
+      if (entry.type === "expense") usedCategories.add(entry.category)
     })
 
     const categories = Array.from(usedCategories).filter((item) =>
@@ -536,6 +596,8 @@ const cashBalance = useMemo(() => {
         const total = groupEntries.reduce((sum, entry) => sum + entry.amount, 0)
 
         return {
+          key: getGroupKey("expense", categoryName),
+          type: "expense" as const,
           category: categoryName,
           total,
           entries: groupEntries,
@@ -548,8 +610,8 @@ const cashBalance = useMemo(() => {
         if (a.total !== b.total) return b.total - a.total
 
         return (
-          getCategorySortIndex(a.category, effectiveCategoryOrder) -
-          getCategorySortIndex(b.category, effectiveCategoryOrder)
+          getCategorySortIndex(a.category, effectiveExpenseCategoryOrder) -
+          getCategorySortIndex(b.category, effectiveExpenseCategoryOrder)
         )
       })
   }, [
@@ -557,15 +619,15 @@ const cashBalance = useMemo(() => {
     templates,
     periodEntries,
     scheduledEntries,
-    effectiveCategoryOrder,
+    effectiveExpenseCategoryOrder,
   ])
 
   const topCategories = useMemo(() => {
-    return spendingGroups
+    return expenseGroups
       .filter((group) => group.total > 0 && group.category !== "other")
       .sort((a, b) => b.total - a.total)
       .slice(0, 3)
-  }, [spendingGroups])
+  }, [expenseGroups])
 
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0 && scheduledEntries.length > 0) {
@@ -676,9 +738,12 @@ const cashBalance = useMemo(() => {
     setIsModalOpen(true)
   }
 
-  const openCreateModalForCategory = (selectedCategory: EntryCategory) => {
+  const openCreateModalForCategory = (
+    selectedCategory: EntryCategory,
+    selectedType: EntryType
+  ) => {
     resetForm()
-    setType("expense")
+    setType(selectedType)
     setCategory(selectedCategory)
     setAutomationMode("one_time")
     setIsModalOpen(true)
@@ -780,7 +845,7 @@ const cashBalance = useMemo(() => {
     }
 
     setCustomCategoryOrder(() => {
-      const baseOrder = effectiveCategoryOrder
+      const baseOrder = effectiveExpenseCategoryOrder
       const withoutDragged = baseOrder.filter((item) => item !== draggedCategory)
       const targetIndex = withoutDragged.indexOf(targetCategory)
 
@@ -993,6 +1058,134 @@ const cashBalance = useMemo(() => {
   const fieldClass =
     "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
 
+  const renderGroup = (group: CashFlowGroup, allowDrag = false) => {
+    const isExpanded = expandedGroupKey === group.key
+    const Icon = categoryIcons[group.category]
+    const sign = group.type === "income" ? "+" : "-"
+    const valueColor = group.type === "income" ? "text-green-500" : "text-red-500"
+
+    return (
+      <div key={group.key} className="border-b border-white/5 last:border-b-0">
+        <button
+          type="button"
+          draggable={allowDrag}
+          onDragStart={() => allowDrag && setDraggedCategory(group.category)}
+          onDragOver={(event) => allowDrag && event.preventDefault()}
+          onDrop={() => allowDrag && handleCategoryDrop(group.category)}
+          onClick={() =>
+            setExpandedGroupKey((prev) => (prev === group.key ? null : group.key))
+          }
+          className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+        >
+          <div className="min-w-0 flex items-center gap-3">
+            {allowDrag && (
+              <GripVertical
+                size={14}
+                strokeWidth={2}
+                className="text-zinc-700 shrink-0 cursor-grab"
+              />
+            )}
+
+            <Icon
+              size={18}
+              strokeWidth={2}
+              className={`shrink-0 transition-colors duration-200 ${
+                isExpanded ? "text-zinc-300" : "text-zinc-500"
+              }`}
+            />
+
+            <div className="min-w-0">
+              <p className="text-zinc-200 font-medium">
+                {formatCategory(group.category)}
+              </p>
+
+              {!isExpanded && (
+                <p className="text-xs text-zinc-600 mt-1">
+                  {group.entries.length} transaction
+                  {group.entries.length === 1 ? "" : "s"}
+                  {!group.isActiveThisMonth ? " · no activity yet" : ""}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {!isExpanded && (
+            <div className="text-right shrink-0 ml-auto">
+              <p className={`text-sm font-medium ${valueColor}`}>
+                {group.total > 0 ? sign : ""}
+                {formatCurrency(group.total, currency)}
+              </p>
+            </div>
+          )}
+        </button>
+
+        {isExpanded && (
+          <div className="px-5 pb-5">
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-zinc-500 text-xs">Total this month</p>
+                <p className={`text-lg font-medium mt-1 ${valueColor}`}>
+                  {group.total > 0 ? sign : ""}
+                  {formatCurrency(group.total, currency)}
+                </p>
+              </div>
+
+              <p className="text-zinc-600 text-xs">
+                {group.entries.length} transaction
+                {group.entries.length === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            {group.entries.length === 0 ? (
+              <div className="rounded-[22px] bg-zinc-950/25 border border-white/5 p-4">
+                <p className="text-zinc-400 text-sm">
+                  No activity in this category yet.
+                </p>
+                <p className="text-zinc-600 text-sm mt-1">
+                  This group stays here because you used it before.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {group.entries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => openTransactionDetail(entry)}
+                    className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-zinc-200 text-sm truncate">
+                        {entry.description}
+                      </p>
+                      <p className="text-xs text-zinc-600 mt-1">
+                        {formatDate(entry.date)}
+                      </p>
+                    </div>
+
+                    <span className={`text-sm font-medium shrink-0 ${valueColor}`}>
+                      {entry.type === "income" ? "+" : "-"}
+                      {formatCurrency(entry.amount, currency)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => openCreateModalForCategory(group.category, group.type)}
+              className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
+            >
+              + Add {formatCategory(group.category).toLowerCase()}{" "}
+              {group.type === "income" ? "income" : "expense"}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
@@ -1050,37 +1243,39 @@ const cashBalance = useMemo(() => {
           </div>
 
           <section className="mb-6">
+            <p className="text-zinc-500 text-sm mb-3">Cash</p>
+
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(cashBalance, currency)}
             </p>
 
             <div className="mt-4 flex gap-7 flex-wrap text-sm">
-  <div className="flex flex-col">
-    <span className="text-zinc-500">Income</span>
-    <span className="text-white font-medium">
-      {formatCurrency(income, currency)}
-    </span>
-  </div>
+              <div className="flex flex-col">
+                <span className="text-zinc-500">Income</span>
+                <span className="text-white font-medium">
+                  {formatCurrency(income, currency)}
+                </span>
+              </div>
 
-  <div className="flex flex-col">
-    <span className="text-zinc-500">Expenses</span>
-    <span className="text-white font-medium">
-      {formatCurrency(expenses, currency)}
-    </span>
-  </div>
+              <div className="flex flex-col">
+                <span className="text-zinc-500">Expenses</span>
+                <span className="text-white font-medium">
+                  {formatCurrency(expenses, currency)}
+                </span>
+              </div>
 
-  <div className="flex flex-col">
-    <span className="text-zinc-500">This month</span>
-    <span
-      className={`font-medium ${
-        net >= 0 ? "text-green-500" : "text-red-500"
-      }`}
-    >
-      {net >= 0 ? "+" : ""}
-      {formatCurrency(net, currency)}
-    </span>
-  </div>
-</div>
+              <div className="flex flex-col">
+                <span className="text-zinc-500">This month</span>
+                <span
+                  className={`font-medium ${
+                    net >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {net >= 0 ? "+" : ""}
+                  {formatCurrency(net, currency)}
+                </span>
+              </div>
+            </div>
 
             <p className="text-sm text-zinc-400 leading-relaxed mt-5">
               {spendingInsight}
@@ -1102,7 +1297,7 @@ const cashBalance = useMemo(() => {
 
                     return (
                       <div
-                        key={group.category}
+                        key={group.key}
                         className="flex items-center justify-between gap-4"
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -1129,156 +1324,121 @@ const cashBalance = useMemo(() => {
             </>
           )}
 
-          <section className="mb-24">
+          <section className="mb-8">
             <div className="mb-3">
               <p className="text-white text-sm font-medium">Categories</p>
             </div>
 
-            {spendingGroups.length === 0 ? (
+            {incomeGroups.length === 0 && expenseGroups.length === 0 ? (
               <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
                 <p className="text-zinc-200 text-sm">No categories yet.</p>
                 <p className="text-zinc-600 text-sm mt-2">
-                  Add your first expense to start building your monthly flow.
+                  Add your first transaction to start building your monthly flow.
                 </p>
               </div>
             ) : (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                {spendingGroups.map((group, index) => {
-                  const isExpanded = expandedCategory === group.category
-                  const Icon = categoryIcons[group.category]
+              <div className="space-y-5">
+                {incomeGroups.length > 0 && (
+                  <div>
+                    <p className="text-zinc-500 text-xs mb-2">Income</p>
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                      {incomeGroups.map((group) => renderGroup(group, false))}
+                    </div>
+                  </div>
+                )}
 
-                  return (
-                    <div
-                      key={group.category}
-                      className={
-                        index !== spendingGroups.length - 1
-                          ? "border-b border-white/5"
-                          : ""
-                      }
-                    >
+                {expenseGroups.length > 0 && (
+                  <div>
+                    <p className="text-zinc-500 text-xs mb-2">Expenses</p>
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                      {expenseGroups.map((group) => renderGroup(group, true))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          <div className="h-px bg-white/5 mb-7" />
+
+          <section className="mb-24">
+            <button
+              type="button"
+              onClick={() => setIsActivityOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between text-left mb-4"
+            >
+              <div>
+                <p className="text-white text-sm font-medium">Activity</p>
+                <p className="text-zinc-600 text-xs mt-1">
+                  {activityEntries.length} confirmed entr
+                  {activityEntries.length === 1 ? "y" : "ies"} this month
+                </p>
+              </div>
+
+              <span className="text-zinc-500 text-lg">
+                {isActivityOpen ? "⌃" : "⌄"}
+              </span>
+            </button>
+
+            {isActivityOpen && (
+              <>
+                {activityEntries.length === 0 ? (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
+                    <p className="text-zinc-300 text-sm">
+                      No confirmed activity yet.
+                    </p>
+                    <p className="text-zinc-600 text-sm mt-1">
+                      Paid scheduled items and manual transactions will appear
+                      here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    {activityEntries.map((entry, index) => (
                       <button
+                        key={entry.id}
                         type="button"
-                        draggable
-                        onDragStart={() => setDraggedCategory(group.category)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => handleCategoryDrop(group.category)}
-                        onClick={() =>
-                          setExpandedCategory((prev) =>
-                            prev === group.category ? null : group.category
-                          )
-                        }
-                        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                        onClick={() => openTransactionDetail(entry)}
+                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
+                          index !== activityEntries.length - 1
+                            ? "border-b border-white/5"
+                            : ""
+                        }`}
                       >
-                        <div className="min-w-0 flex items-center gap-3">
-                          <GripVertical
-                            size={14}
-                            strokeWidth={2}
-                            className="text-zinc-700 shrink-0 cursor-grab"
-                          />
-
-                          <Icon
-                            size={18}
-                            strokeWidth={2}
-                            className={`shrink-0 transition-colors duration-200 ${
-                              isExpanded ? "text-zinc-300" : "text-zinc-500"
-                            }`}
-                          />
-
-                          <div className="min-w-0">
-                            <p className="text-zinc-200 font-medium">
-                              {formatCategory(group.category)}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-zinc-200 truncate">
+                              {entry.description}
                             </p>
 
-                            {!isExpanded && (
-                              <p className="text-xs text-zinc-600 mt-1">
-                                {group.entries.length} transaction
-                                {group.entries.length === 1 ? "" : "s"}
-                                {!group.isActiveThisMonth
-                                  ? " · no activity yet"
-                                  : ""}
-                              </p>
+                            {entry.automationLabel && (
+                              <span className="text-xs text-zinc-600">
+                                {entry.automationLabel}
+                              </span>
                             )}
                           </div>
+
+                          <p className="text-xs text-zinc-600 mt-1">
+                            {formatCategory(entry.category)} ·{" "}
+                            {formatDate(entry.date)}
+                          </p>
                         </div>
 
-                        {!isExpanded && (
-                          <div className="text-right shrink-0 ml-auto">
-                            <p className="text-zinc-300 text-sm font-medium">
-                              {formatCurrency(group.total, currency)}
-                            </p>
-                          </div>
-                        )}
+                        <span
+                          className={`shrink-0 text-sm font-medium ${
+                            entry.type === "income"
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {entry.type === "income" ? "+" : "-"}
+                          {formatCurrency(entry.amount, currency)}
+                        </span>
                       </button>
-
-                      {isExpanded && (
-                        <div className="px-5 pb-5">
-                          <div className="mb-4 flex items-end justify-between gap-4">
-                            <div>
-                              <p className="text-zinc-500 text-xs">
-                                Total this month
-                              </p>
-                              <p className="text-white text-lg font-medium mt-1">
-                                {formatCurrency(group.total, currency)}
-                              </p>
-                            </div>
-
-                            <p className="text-zinc-600 text-xs">
-                              {group.entries.length} transaction
-                              {group.entries.length === 1 ? "" : "s"}
-                            </p>
-                          </div>
-
-                          {group.entries.length === 0 ? (
-                            <div className="rounded-[22px] bg-zinc-950/25 border border-white/5 p-4">
-                              <p className="text-zinc-400 text-sm">
-                                No activity in this category yet.
-                              </p>
-                              <p className="text-zinc-600 text-sm mt-1">
-                                This group stays here because you used it before.
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              {group.entries.map((entry) => (
-                                <button
-                                  key={entry.id}
-                                  type="button"
-                                  onClick={() => openTransactionDetail(entry)}
-                                  className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="text-zinc-200 text-sm truncate">
-                                      {entry.description}
-                                    </p>
-                                    <p className="text-xs text-zinc-600 mt-1">
-                                      {formatDate(entry.date)}
-                                    </p>
-                                  </div>
-
-                                  <span className="text-red-500 text-sm font-medium shrink-0">
-                                    -{formatCurrency(entry.amount, currency)}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openCreateModalForCategory(group.category)
-                            }
-                            className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
-                          >
-                            + Add {formatCategory(group.category).toLowerCase()}{" "}
-                            expense
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>
