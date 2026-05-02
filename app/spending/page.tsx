@@ -16,6 +16,9 @@ import {
   generateEntriesForPeriod,
 } from "@/lib/spending-automation"
 
+import Link from "next/link"
+import { ArrowUpRight, Tags } from "lucide-react"
+
 type Entry = {
   id: string
   description: string
@@ -880,6 +883,34 @@ export default function Spending() {
               </div>
             </section>
           )}
+
+          {spendingGroups.length > 0 && (
+  <section className="mb-10">
+    <Link
+      href="/spending/categories"
+      className="group block rounded-[28px] bg-zinc-900/55 border border-white/5 p-6 sm:p-7 transition-all duration-200 ease-out hover:bg-zinc-900/72 active:scale-[0.995]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/[0.06] border border-[var(--accent)]/[0.14] text-[var(--accent)]">
+            <Tags size={17} strokeWidth={2} />
+          </div>
+
+          <div>
+            <p className="text-white text-base font-medium">Spending groups</p>
+            <p className="text-zinc-500 text-sm mt-2">
+              See your monthly spending by category.
+            </p>
+          </div>
+        </div>
+
+        <div className="text-zinc-600 transition-all duration-200 group-hover:text-zinc-400 group-hover:translate-x-[1px] group-hover:-translate-y-[1px]">
+          <ArrowUpRight size={18} strokeWidth={2} />
+        </div>
+      </div>
+    </Link>
+  </section>
+)}
 
           {spendingGroups.length > 0 && (
   <section className="mb-10">
