@@ -383,12 +383,19 @@ export default function PortfolioPage() {
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
           <header className="mb-6">
-            <h1 className="text-4xl font-semibold tracking-tight text-white">
-              {formatCurrency(totals.currentTotal, currency)}
-            </h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Portfolio</h1>
+            <p className="text-zinc-500 mt-2">
+              See your holdings and performance.
+            </p>
+          </header>
 
-            {groups.length > 0 && (
-              <div className="mt-3 flex items-center gap-2 text-sm">
+          {groups.length > 0 && (
+            <section className="mb-4">
+              <h2 className="text-2xl font-semibold tracking-tight text-white">
+                {formatCurrency(totals.currentTotal, currency)}
+              </h2>
+
+              <div className="mt-2 flex items-center gap-2 text-sm">
                 <span
                   className={`font-medium ${
                     totals.profit >= 0 ? "text-green-500" : "text-red-500"
@@ -408,8 +415,8 @@ export default function PortfolioPage() {
                   {totals.profitPct.toFixed(1)}%
                 </span>
               </div>
-            )}
-          </header>
+            </section>
+          )}
 
           {groups.length === 0 ? (
             <section className="mb-10">

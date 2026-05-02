@@ -461,62 +461,56 @@ export default function Investments() {
           </header>
 
           <section>
-            <button
-              type="button"
-              onClick={() => setIsOverviewExpanded((prev) => !prev)}
-              className={`w-full rounded-[30px] bg-black text-left transition-all duration-200 ease-out ${
-                isOverviewExpanded
-                  ? "border border-[var(--accent)]/15 p-8"
-                  : "border border-transparent p-0"
-              }`}
-            >
-              <p className="text-zinc-500 text-sm mb-3">Current Value</p>
+  <button
+    type="button"
+    onClick={() => setIsOverviewExpanded((prev) => !prev)}
+    className={`w-full rounded-[30px] bg-black text-left transition-all duration-200 ease-out ${
+      isOverviewExpanded
+        ? "border border-[var(--accent)]/15 p-5"
+        : "border border-transparent p-0"
+    }`}
+  >
+    <p className="text-zinc-500 text-sm mb-2">Current Value</p>
 
-              <h2 className="text-5xl font-semibold tracking-tight text-white">
-                {formatCurrency(totals.currentTotal, currency)}
-              </h2>
+    <h2 className="text-5xl font-semibold tracking-tight text-white">
+      {formatCurrency(totals.currentTotal, currency)}
+    </h2>
 
-              <div
-                className={`overflow-hidden transition-all duration-200 ease-out ${
-                  isOverviewExpanded
-                    ? "max-h-[220px] opacity-100 mt-6"
-                    : "max-h-0 opacity-0 mt-0"
-                }`}
-              >
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500 text-sm">Invested</span>
-                    <span className="text-white text-sm font-medium">
-                      {formatCurrency(totals.investedTotal, currency)}
-                    </span>
-                  </div>
+    {isOverviewExpanded && (
+      <div className="mt-5 grid gap-4">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-500 text-sm">Invested</span>
+          <span className="text-white text-sm font-medium">
+            {formatCurrency(totals.investedTotal, currency)}
+          </span>
+        </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500 text-sm">Profit</span>
-                    <span
-                      className={`text-sm font-medium ${
-                        totals.profit >= 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      {formatCurrency(totals.profit, currency)}
-                    </span>
-                  </div>
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-500 text-sm">Profit</span>
+          <span
+            className={`text-sm font-medium ${
+              totals.profit >= 0 ? "text-green-500" : "text-red-500"
+            }`}
+          >
+            {formatCurrency(totals.profit, currency)}
+          </span>
+        </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500 text-sm">Performance</span>
-                    <span
-                      className={`text-sm font-medium ${
-                        totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      {totals.profitPct >= 0 ? "+" : ""}
-                      {totals.profitPct.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-          </section>
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-500 text-sm">Performance</span>
+          <span
+            className={`text-sm font-medium ${
+              totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
+            }`}
+          >
+            {totals.profitPct >= 0 ? "+" : ""}
+            {totals.profitPct.toFixed(1)}%
+          </span>
+        </div>
+      </div>
+    )}
+  </button>
+</section>
 
           <section className="mt-3">
             <p className="text-sm text-zinc-400">{portfolioInsight}</p>
