@@ -1,25 +1,66 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+import { ArrowUpRight, CircleDollarSign, Layers, Wallet } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
-import AeraLogo from "@/components/AeraLogo"
+import { getCurrentPeriodKey } from "@/lib/period"
+import {
+  type AutomationTemplate,
+  type EntryCategory,
+  type EntryType,
+  generateEntriesForPeriod,
+} from "@/lib/spending-automation"
 
 type Entry = {
   id: string
   description: string
   amount: number
-  type: "income" | "expense"
-  date?: string
-  category?: string
+  type: EntryType
+  category: EntryCategory
+  date: string
+  accountId: string
+  createdAt: string
+  updatedAt: string
 }
 
-type Investment = {
+type InvestmentEntry = {
+  id: string
+  name: string
+  type:
+    | "crypto"
+    | "stock"
+    | "etf"
+    | "real_estate"
+    | "fixed_income"
+    | "cash"
+    | "other"
+  amount: number
+  ticker?: string
+  notes?: string
+  date: string
+  accountId: string
+  createdAt: string
+  updatedAt: string
+}
+
+type LegacyInvestment = {
   id: string
   name: string
   type: string
   invested: number
   currentValue: number
+  ticker?: string
+  accountId: string
+  createdAt: string
+  updatedAt: string
+}
+
+type DisplayEntry = Entry & {
+  source: "manual" | "automation"
+  templateId?: string
+  automationKind?: "recurring" | "installment"
+  automationLabel?: string
+  paymentBehavior?: "auto_paid" | "manual"
 }
 
 function formatCurrency(value: number, currency = "USD") {
@@ -30,249 +71,414 @@ function formatCurrency(value: number, currency = "USD") {
   }).format(value)
 }
 
-function isCurrentMonth(date?: string) {
-  if (!date) return true
-
-  const entryDate = new Date(date)
+function getTodayDate() {
   const now = new Date()
+  const year = now.getFullYear()
+  const month = `${now.getMonth() + 1}`.padStart(2, "0")
+  const day = `${now.getDate()}`.padStart(2, "0")
 
-  return (
-    entryDate.getMonth() === now.getMonth() &&
-    entryDate.getFullYear() === now.getFullYear()
-  )
+  return `${year}-${month}-${day}`
+}
+
+function isDue(date: string) {
+  return date <= getTodayDate()
+}
+
+function getHoldingKey(name: string, ticker?: string) {
+  const cleanTicker = ticker?.trim().toUpperCase()
+
+  if (cleanTicker) {
+    return cleanTicker
+  }
+
+  return name.trim().toLowerCase().replace(/\s+/g, "-")
+}
+
+function getInsight({
+  income,
+  expenses,
+  monthlyResult,
+  portfolioValue,
+  portfolioProfit,
+}: {
+  income: number
+  expenses: number
+  monthlyResult: number
+  portfolioValue: number
+  portfolioProfit: number
+}) {
+  if (income <= 0 && expenses <= 0 && portfolioValue <= 0) {
+    return "Start tracking your money to see your financial picture clearly."
+  }
+
+  if (monthlyResult > 0 && portfolioProfit > 0) {
+    return "Positive month overall — your cash flow and portfolio are both moving well."
+  }
+
+  if (monthlyResult > 0) {
+    return "You’re saving part of your income this month."
+  }
+
+  if (income > 0 && expenses / income < 0.8) {
+    return "Your spending is under control."
+  }
+
+  if (income > 0 && expenses > income) {
+    return "High spending detected this month."
+  }
+
+  if (portfolioProfit > 0) {
+    return "Your portfolio is above your invested capital."
+  }
+
+  return "Your financial picture is stable, but worth watching closely."
 }
 
 export default function Home() {
   const { currency } = useCurrency()
 
   const [entries, setEntries] = useState<Entry[]>([])
-  const [investments, setInvestments] = useState<Investment[]>([])
-  const [isMonthOpen, setIsMonthOpen] = useState(true)
+  const [templates, setTemplates] = useState<AutomationTemplate[]>([])
+  const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
+
+  const [investmentEntries, setInvestmentEntries] = useState<InvestmentEntry[]>([])
+  const [holdingValues, setHoldingValues] = useState<Record<string, number>>({})
+  const [legacyInvestments, setLegacyInvestments] = useState<LegacyInvestment[]>([])
+
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
     try {
       const savedEntries = localStorage.getItem("entries")
-      const savedInvestments = localStorage.getItem("investments")
+      const savedTemplates = localStorage.getItem("automationTemplates")
+      const savedPaidScheduledIds = localStorage.getItem("paidScheduledPayments")
+      const savedInvestmentEntries = localStorage.getItem("investmentEntries")
+      const savedHoldingValues = localStorage.getItem("investmentHoldingValues")
+      const savedLegacyInvestments = localStorage.getItem("investments")
 
       if (savedEntries) {
         const parsedEntries = JSON.parse(savedEntries)
         setEntries(Array.isArray(parsedEntries) ? parsedEntries : [])
       }
 
-      if (savedInvestments) {
-        const parsedInvestments = JSON.parse(savedInvestments)
-        setInvestments(Array.isArray(parsedInvestments) ? parsedInvestments : [])
+      if (savedTemplates) {
+        const parsedTemplates = JSON.parse(savedTemplates)
+        setTemplates(Array.isArray(parsedTemplates) ? parsedTemplates : [])
+      }
+
+      if (savedPaidScheduledIds) {
+        const parsedPaidScheduledIds = JSON.parse(savedPaidScheduledIds)
+        setPaidScheduledIds(
+          Array.isArray(parsedPaidScheduledIds) ? parsedPaidScheduledIds : []
+        )
+      }
+
+      if (savedInvestmentEntries) {
+        const parsedInvestmentEntries = JSON.parse(savedInvestmentEntries)
+        setInvestmentEntries(
+          Array.isArray(parsedInvestmentEntries) ? parsedInvestmentEntries : []
+        )
+      }
+
+      if (savedHoldingValues) {
+        const parsedHoldingValues = JSON.parse(savedHoldingValues)
+        setHoldingValues(
+          parsedHoldingValues && typeof parsedHoldingValues === "object"
+            ? parsedHoldingValues
+            : {}
+        )
+      }
+
+      if (savedLegacyInvestments) {
+        const parsedLegacyInvestments = JSON.parse(savedLegacyInvestments)
+        setLegacyInvestments(
+          Array.isArray(parsedLegacyInvestments) ? parsedLegacyInvestments : []
+        )
       }
     } catch {
       setEntries([])
-      setInvestments([])
+      setTemplates([])
+      setPaidScheduledIds([])
+      setInvestmentEntries([])
+      setHoldingValues({})
+      setLegacyInvestments([])
+    } finally {
+      setHydrated(true)
     }
   }, [])
 
-  const monthlyEntries = useMemo(
-    () => entries.filter((entry) => isCurrentMonth(entry.date)),
-    [entries]
-  )
+  const selectedPeriod = getCurrentPeriodKey()
 
-  const monthlyIncome = monthlyEntries
-    .filter((entry) => entry.type === "income")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+  const manualPeriodEntries = useMemo<DisplayEntry[]>(() => {
+    return entries
+      .filter((entry) => entry.date.slice(0, 7) === selectedPeriod)
+      .map((entry) => ({
+        ...entry,
+        source: "manual" as const,
+      }))
+  }, [entries, selectedPeriod])
 
-  const monthlyExpenses = monthlyEntries
-    .filter((entry) => entry.type === "expense")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+  const generatedPeriodEntries = useMemo<DisplayEntry[]>(() => {
+    return generateEntriesForPeriod(templates, selectedPeriod).map((entry) => ({
+      ...entry,
+      source: "automation" as const,
+    }))
+  }, [templates, selectedPeriod])
 
-  const investmentsTotal = investments.reduce(
-    (acc, asset) => acc + (asset.currentValue || 0),
-    0
-  )
+  const confirmedGeneratedEntries = useMemo(() => {
+    return generatedPeriodEntries.filter((entry) => {
+      const behavior = entry.paymentBehavior || "manual"
 
-  const totalIncome = entries
-    .filter((entry) => entry.type === "income")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+      if (behavior === "auto_paid") {
+        return isDue(entry.date)
+      }
 
-  const totalExpenses = entries
-    .filter((entry) => entry.type === "expense")
-    .reduce((acc, entry) => acc + entry.amount, 0)
+      return paidScheduledIds.includes(entry.id)
+    })
+  }, [generatedPeriodEntries, paidScheduledIds])
 
-  const cash = totalIncome - totalExpenses
-  const netWorth = cash + investmentsTotal
-  const netFlow = monthlyIncome - monthlyExpenses
+  const periodEntries = useMemo(() => {
+    return [...manualPeriodEntries, ...confirmedGeneratedEntries]
+  }, [manualPeriodEntries, confirmedGeneratedEntries])
 
-  const hasAnyData = entries.length > 0 || investments.length > 0
+  const monthlyIncome = useMemo(() => {
+    return periodEntries
+      .filter((entry) => entry.type === "income")
+      .reduce((sum, entry) => sum + entry.amount, 0)
+  }, [periodEntries])
 
-  const portfolioStatus = useMemo(() => {
-    if (!hasAnyData || (cash === 0 && investmentsTotal === 0)) {
-      return { label: "No assets" }
+  const monthlyExpenses = useMemo(() => {
+    return periodEntries
+      .filter((entry) => entry.type === "expense")
+      .reduce((sum, entry) => sum + entry.amount, 0)
+  }, [periodEntries])
+
+  const monthlyResult = monthlyIncome - monthlyExpenses
+
+  const portfolioTotals = useMemo(() => {
+    if (investmentEntries.length > 0) {
+      const grouped = investmentEntries.reduce<Record<string, InvestmentEntry[]>>(
+        (acc, entry) => {
+          const key = getHoldingKey(entry.name, entry.ticker)
+          acc[key] = [...(acc[key] || []), entry]
+          return acc
+        },
+        {}
+      )
+
+      return Object.entries(grouped).reduce(
+        (acc, [key, holdingEntries]) => {
+          const invested = holdingEntries.reduce(
+            (sum, entry) => sum + entry.amount,
+            0
+          )
+          const currentValue =
+            typeof holdingValues[key] === "number" ? holdingValues[key] : invested
+
+          return {
+            invested: acc.invested + invested,
+            currentValue: acc.currentValue + currentValue,
+          }
+        },
+        { invested: 0, currentValue: 0 }
+      )
     }
 
-    if (investmentsTotal > cash) {
-      return { label: "Asset heavy" }
+    return legacyInvestments.reduce(
+      (acc, investment) => {
+        return {
+          invested: acc.invested + (investment.invested || 0),
+          currentValue:
+            acc.currentValue +
+            (investment.currentValue || investment.invested || 0),
+        }
+      },
+      { invested: 0, currentValue: 0 }
+    )
+  }, [investmentEntries, holdingValues, legacyInvestments])
+
+  const portfolioProfit = portfolioTotals.currentValue - portfolioTotals.invested
+
+  const cash = monthlyResult
+  const portfolio = portfolioTotals.currentValue
+  const netWorth = cash + portfolio
+
+  const cashPct =
+    netWorth > 0 ? Math.max(0, Math.min(100, (cash / netWorth) * 100)) : 0
+  const portfolioPct =
+    netWorth > 0 ? Math.max(0, Math.min(100, (portfolio / netWorth) * 100)) : 0
+
+  const insight = getInsight({
+    income: monthlyIncome,
+    expenses: monthlyExpenses,
+    monthlyResult,
+    portfolioValue: portfolio,
+    portfolioProfit,
+  })
+
+  const statusLabel = useMemo(() => {
+    if (monthlyResult > 0 && portfolioProfit > 0) return "Positive overall"
+    if (monthlyResult > 0) return "Positive month"
+    if (monthlyIncome > 0 && monthlyExpenses / monthlyIncome < 0.8) {
+      return "Spending controlled"
     }
-
-    if (cash > investmentsTotal) {
-      return { label: "Cash heavy" }
+    if (monthlyIncome > 0 && monthlyExpenses > monthlyIncome) {
+      return "High spending"
     }
-
-    return { label: "Balanced" }
-  }, [hasAnyData, cash, investmentsTotal])
-
-  const monthlyInsight = useMemo(() => {
-    if (monthlyEntries.length === 0) {
-      return "No activity this month yet."
-    }
-
-    if (monthlyIncome <= 0 && monthlyExpenses > 0) {
-      return "Spending without income this month."
-    }
-
-    if (monthlyIncome <= 0 && monthlyExpenses <= 0) {
-      return "No monthly activity yet."
-    }
-
-    const savingsRate = monthlyIncome > 0 ? (netFlow / monthlyIncome) * 100 : 0
-
-    if (savingsRate >= 50) {
-      return "You’re saving most of your income."
-    }
-
-    if (savingsRate >= 20) {
-      return "You’re saving part of your income."
-    }
-
-    if (savingsRate >= 0) {
-      return "Spending is high this month."
-    }
-
-    return "You’re spending more than you earn."
-  }, [monthlyEntries.length, monthlyIncome, monthlyExpenses, netFlow])
+    if (portfolio > cash) return "Asset heavy"
+    return "Tracking"
+  }, [monthlyResult, portfolioProfit, monthlyIncome, monthlyExpenses, portfolio, cash])
 
   return (
     <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
       <div className="max-w-4xl mx-auto">
-        <header className="mb-10">
-          <AeraLogo size={36} />
-          <p className="text-zinc-500 mt-2">See your money clearly.</p>
+        <header className="mb-8">
+          <h1 className="text-4xl font-semibold tracking-tight">
+            Aera<span className="text-[var(--accent)]">.</span>
+          </h1>
+          <p className="text-zinc-500 mt-2">Your financial life, clearly understood.</p>
         </header>
 
-        {!hasAnyData && (
-          <section className="mb-8">
-            <div className="rounded-[28px] bg-zinc-900/60 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.24)] p-6 sm:p-7">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-                <div>
-                  <p className="text-zinc-200 text-base font-medium">
-                    Start tracking your money
-                  </p>
-                  <p className="text-zinc-500 text-sm mt-2 max-w-md">
-                    Add your first transaction to begin building a clear financial
-                    view.
-                  </p>
-                </div>
+        <section className="mb-8">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <p className="text-zinc-500 text-sm">Net Worth</p>
 
-                <Link
-                  href="/spending"
-                  className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-black px-5 py-3 text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-95"
-                >
-                  Add first transaction
-                </Link>
-              </div>
-            </div>
-          </section>
-        )}
+            <span className="rounded-full border border-[var(--accent)]/20 bg-[var(--accent)]/[0.08] px-3 py-1 text-xs text-[var(--accent)]">
+              {statusLabel}
+            </span>
+          </div>
 
-        <section className="mb-10">
-          <div className="rounded-[30px] bg-zinc-900/72 border border-white/5 shadow-[0_14px_40px_rgba(0,0,0,0.28)] p-8">
+          <h2 className="text-6xl font-semibold tracking-tight text-white">
+            {hydrated ? formatCurrency(netWorth, currency) : formatCurrency(0, currency)}
+          </h2>
+        </section>
+
+        <section className="mb-7">
+          <div className="grid grid-cols-3 gap-5">
             <div>
-              <div className="flex items-center justify-between gap-4 mb-3">
-                <p className="text-zinc-500 text-sm">Net Worth</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet size={15} strokeWidth={2} className="text-zinc-600" />
+                <p className="text-zinc-500 text-xs">Cash</p>
+              </div>
+              <p className="text-white text-sm font-medium">
+                {formatCurrency(cash, currency)}
+              </p>
+            </div>
 
-                <span className="inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium bg-[var(--accent)]/16 text-[var(--accent)] border border-[var(--accent)]/20">
-                  {portfolioStatus.label}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Layers size={15} strokeWidth={2} className="text-zinc-600" />
+                <p className="text-zinc-500 text-xs">Portfolio</p>
+              </div>
+              <p className="text-white text-sm font-medium">
+                {formatCurrency(portfolio, currency)}
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <CircleDollarSign
+                  size={15}
+                  strokeWidth={2}
+                  className="text-zinc-600"
+                />
+                <p className="text-zinc-500 text-xs">Monthly</p>
+              </div>
+              <p
+                className={`text-sm font-medium ${
+                  monthlyResult >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {monthlyResult >= 0 ? "+" : ""}
+                {formatCurrency(monthlyResult, currency)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div className="h-px bg-white/5 mb-7" />
+
+        <section className="mb-8">
+          <p className="text-white text-sm font-medium mb-2">Financial status</p>
+          <p className="text-zinc-400 text-sm leading-relaxed">{insight}</p>
+        </section>
+
+        <div className="h-px bg-white/5 mb-7" />
+
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-white text-sm font-medium">Composition</p>
+            <p className="text-zinc-600 text-xs">Cash vs Portfolio</p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-zinc-400">Cash</span>
+                <span className="text-zinc-500">
+                  {netWorth > 0 ? `${cashPct.toFixed(0)}%` : "0%"}
                 </span>
               </div>
+              <div className="h-2 rounded-full bg-zinc-900 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-white/30 transition-all duration-300"
+                  style={{ width: `${cashPct}%` }}
+                />
+              </div>
+            </div>
 
-              <h2 className="text-5xl font-semibold tracking-tight">
-                {formatCurrency(netWorth, currency)}
-              </h2>
-
-              <div className="mt-5 flex gap-6 flex-wrap text-sm">
-                <div className="flex flex-col">
-                  <span className="text-zinc-500">Cash</span>
-                  <span className="text-white font-medium">
-                    {formatCurrency(cash, currency)}
-                  </span>
-                </div>
-
-                <div className="flex flex-col">
-                  <span className="text-zinc-500">Investments</span>
-                  <span className="text-white font-medium">
-                    {formatCurrency(investmentsTotal, currency)}
-                  </span>
-                </div>
+            <div>
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-zinc-400">Portfolio</span>
+                <span className="text-zinc-500">
+                  {netWorth > 0 ? `${portfolioPct.toFixed(0)}%` : "0%"}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-zinc-900 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-[var(--accent)]/70 transition-all duration-300"
+                  style={{ width: `${portfolioPct}%` }}
+                />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mb-24">
-          <button
-            type="button"
-            onClick={() => setIsMonthOpen((prev) => !prev)}
-            className="w-full flex items-center justify-between text-left mb-4"
-          >
-            <p className="text-white text-sm font-medium">This month</p>
+        <div className="h-px bg-white/5 mb-7" />
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-zinc-600">
-                {new Intl.DateTimeFormat("en-US", {
-                  month: "short",
-                  year: "numeric",
-                }).format(new Date())}
-              </span>
-              <span className="text-[var(--accent)] text-lg">
-                {isMonthOpen ? "⌃" : "⌄"}
+        <section className="mb-24">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-white text-sm font-medium">This month</p>
+            <ArrowUpRight size={16} strokeWidth={2} className="text-zinc-600" />
+          </div>
+
+          <div className="grid gap-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500">Income</span>
+              <span className="text-white font-medium">
+                {formatCurrency(monthlyIncome, currency)}
               </span>
             </div>
-          </button>
 
-          <div
-            className={`transition-[max-height,opacity] duration-200 ease-out overflow-hidden ${
-              isMonthOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
-            }`}
-          >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500 text-sm">Income</span>
-                <span className="text-white text-sm font-medium">
-                  {formatCurrency(monthlyIncome, currency)}
-                </span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500">Expenses</span>
+              <span className="text-white font-medium">
+                {formatCurrency(monthlyExpenses, currency)}
+              </span>
+            </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500 text-sm">Expenses</span>
-                <span className="text-white text-sm font-medium">
-                  {formatCurrency(monthlyExpenses, currency)}
-                </span>
-              </div>
+            <div className="h-px bg-white/5 my-1" />
 
-              <div className="h-px bg-white/5" />
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-300 text-sm font-medium">Net</span>
-                <span
-                  className={`text-sm font-medium ${
-                    netFlow > 0
-                      ? "text-green-500"
-                      : netFlow < 0
-                      ? "text-red-500"
-                      : "text-zinc-300"
-                  }`}
-                >
-                  {formatCurrency(netFlow, currency)}
-                </span>
-              </div>
-
-              <p className="text-xs text-zinc-500 pt-1">{monthlyInsight}</p>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-300">Result</span>
+              <span
+                className={`font-medium ${
+                  monthlyResult >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {monthlyResult >= 0 ? "+" : ""}
+                {formatCurrency(monthlyResult, currency)}
+              </span>
             </div>
           </div>
         </section>
