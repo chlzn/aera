@@ -1,11 +1,6 @@
 export function getPeriodKey(dateString?: string) {
   if (!dateString) return null
-
-  const date = new Date(dateString)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-
-  return `${year}-${month}`
+  return dateString.slice(0, 7)
 }
 
 export function formatPeriodLabel(periodKey: string) {
@@ -19,13 +14,15 @@ export function formatPeriodLabel(periodKey: string) {
 }
 
 export function isSamePeriod(dateString: string | undefined, periodKey: string) {
-  return getPeriodKey(dateString) === periodKey
+  if (!dateString) return false
+  return dateString.slice(0, 7) === periodKey
 }
 
 export function getCurrentPeriodKey() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
+
 export function getAvailablePeriodsFromCurrentYear() {
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -34,9 +31,7 @@ export function getAvailablePeriodsFromCurrentYear() {
   const periods: string[] = []
 
   for (let month = currentMonth; month >= 0; month--) {
-    periods.push(
-      `${currentYear}-${String(month + 1).padStart(2, "0")}`
-    )
+    periods.push(`${currentYear}-${String(month + 1).padStart(2, "0")}`)
   }
 
   return periods

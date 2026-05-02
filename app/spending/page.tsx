@@ -67,11 +67,14 @@ function formatCurrency(value: number, currency = "USD") {
 
 function formatDate(date: string) {
   if (!date) return "No date"
+
+  const [year, month, day] = date.split("-").map(Number)
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(date))
+  }).format(new Date(year, month - 1, day))
 }
 
 function formatCategory(category: string) {
@@ -81,7 +84,12 @@ function formatCategory(category: string) {
 }
 
 function getTodayDate() {
-  return new Date().toISOString().split("T")[0]
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = `${now.getMonth() + 1}`.padStart(2, "0")
+  const day = `${now.getDate()}`.padStart(2, "0")
+
+  return `${year}-${month}-${day}`
 }
 
 function generateId() {
@@ -208,12 +216,12 @@ export default function Spending() {
   }, [templates, selectedPeriod])
 
   const periodEntries = useMemo<DisplayEntry[]>(() => {
-    return [...manualPeriodEntries, ...generatedPeriodEntries].sort((a, b) => {
-      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
-      if (dateDiff !== 0) return dateDiff
-      return b.createdAt.localeCompare(a.createdAt)
-    })
-  }, [manualPeriodEntries, generatedPeriodEntries])
+  return [...manualPeriodEntries, ...generatedPeriodEntries].sort((a, b) => {
+    const dateDiff = b.date.localeCompare(a.date)
+    if (dateDiff !== 0) return dateDiff
+    return b.createdAt.localeCompare(a.createdAt)
+  })
+}, [manualPeriodEntries, generatedPeriodEntries])
 
   const income = periodEntries
     .filter((entry) => entry.type === "income")

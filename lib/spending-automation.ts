@@ -67,43 +67,48 @@ export type GeneratedEntry = {
   automationLabel?: string
 }
 
-function parsePeriodKey(periodKey: string) {
-  const [year, month] = periodKey.split("-").map(Number)
-  return { year, monthIndex: month - 1 }
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number)
+  return { year, month, day }
 }
 
-function startOfPeriod(periodKey: string) {
-  const { year, monthIndex } = parsePeriodKey(periodKey)
-  return new Date(year, monthIndex, 1, 0, 0, 0, 0)
+function toDateKeyFromParts(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
 }
 
-function endOfPeriod(periodKey: string) {
-  const { year, monthIndex } = parsePeriodKey(periodKey)
-  return new Date(year, monthIndex + 1, 0, 23, 59, 59, 999)
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate()
 }
 
-function samePeriod(date: Date, periodKey: string) {
-  const { year, monthIndex } = parsePeriodKey(periodKey)
-  return date.getFullYear() === year && date.getMonth() === monthIndex
+function addMonthsToDateKey(dateKey: string, count: number) {
+  const { year, month, day } = parseDateKey(dateKey)
+
+  const totalMonths = year * 12 + (month - 1) + count
+  const nextYear = Math.floor(totalMonths / 12)
+  const nextMonth = (totalMonths % 12) + 1
+  const safeDay = Math.min(day, daysInMonth(nextYear, nextMonth))
+
+  return toDateKeyFromParts(nextYear, nextMonth, safeDay)
 }
 
-function toDateKey(date: Date) {
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, "0")
-  const day = `${date.getDate()}`.padStart(2, "0")
-  return `${year}-${month}-${day}`
+function addDaysToDateKey(dateKey: string, count: number) {
+  const { year, month, day } = parseDateKey(dateKey)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + count)
+
+  return toDateKeyFromParts(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate()
+  )
 }
 
-function addMonths(date: Date, count: number) {
-  const copy = new Date(date)
-  copy.setMonth(copy.getMonth() + count)
-  return copy
+function isSamePeriod(dateKey: string, periodKey: string) {
+  return dateKey.slice(0, 7) === periodKey
 }
 
-function addDays(date: Date, count: number) {
-  const copy = new Date(date)
-  copy.setDate(copy.getDate() + count)
-  return copy
+function isBeforeOrSamePeriod(dateKey: string, periodKey: string) {
+  return dateKey.slice(0, 7) <= periodKey
 }
 
 function splitInstallmentAmounts(totalAmount: number, count: number) {
@@ -121,30 +126,27 @@ export function generateEntriesForPeriod(
   templates: AutomationTemplate[],
   periodKey: string
 ): GeneratedEntry[] {
-  const periodStart = startOfPeriod(periodKey)
-  const periodEnd = endOfPeriod(periodKey)
-
   const generated: GeneratedEntry[] = []
 
   for (const template of templates) {
-    const startDate = new Date(template.automation.startDate)
+    const startDate = template.automation.startDate
 
-    if (Number.isNaN(startDate.getTime())) continue
-    if (startDate > periodEnd) continue
+    if (!startDate || startDate.length < 10) continue
+    if (!isBeforeOrSamePeriod(startDate, periodKey)) continue
 
     if (template.automation.kind === "recurring") {
-      let cursor = new Date(startDate)
+      let cursor = startDate
       let iterations = 0
 
-      while (cursor <= periodEnd && iterations < 1000) {
-        if (cursor >= periodStart && cursor <= periodEnd) {
+      while (cursor.slice(0, 7) <= periodKey && iterations < 1000) {
+        if (isSamePeriod(cursor, periodKey)) {
           generated.push({
-            id: `${template.id}-${toDateKey(cursor)}`,
+            id: `${template.id}-${cursor}`,
             description: template.description,
             amount: template.automation.amount,
             type: template.type,
             category: template.category,
-            date: toDateKey(cursor),
+            date: cursor,
             accountId: template.accountId,
             createdAt: template.createdAt,
             updatedAt: template.updatedAt,
@@ -158,8 +160,8 @@ export function generateEntriesForPeriod(
 
         cursor =
           template.automation.frequency === "monthly"
-            ? addMonths(cursor, 1)
-            : addDays(cursor, 7)
+            ? addMonthsToDateKey(cursor, 1)
+            : addDaysToDateKey(cursor, 7)
 
         iterations += 1
       }
@@ -173,13 +175,13 @@ export function generateEntriesForPeriod(
 
       for (let index = 0; index < template.automation.installmentCount; index++) {
         const occurrenceDate =
-  template.automation.frequency === "monthly"
-    ? addMonths(startDate, index)
-    : template.automation.frequency === "weekly"
-    ? addDays(startDate, index * 7)
-    : addDays(startDate, index * 14)
+          template.automation.frequency === "monthly"
+            ? addMonthsToDateKey(startDate, index)
+            : template.automation.frequency === "weekly"
+            ? addDaysToDateKey(startDate, index * 7)
+            : addDaysToDateKey(startDate, index * 14)
 
-        if (!samePeriod(occurrenceDate, periodKey)) continue
+        if (!isSamePeriod(occurrenceDate, periodKey)) continue
 
         generated.push({
           id: `${template.id}-${index + 1}`,
@@ -187,7 +189,7 @@ export function generateEntriesForPeriod(
           amount: amounts[index],
           type: template.type,
           category: template.category,
-          date: toDateKey(occurrenceDate),
+          date: occurrenceDate,
           accountId: template.accountId,
           createdAt: template.createdAt,
           updatedAt: template.updatedAt,
@@ -200,9 +202,5 @@ export function generateEntriesForPeriod(
     }
   }
 
-  return generated.sort((a, b) => {
-    const timeA = new Date(b.date).getTime()
-    const timeB = new Date(a.date).getTime()
-    return timeA - timeB
-  })
+  return generated.sort((a, b) => b.date.localeCompare(a.date))
 }
