@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { ArrowUpRight, BriefcaseBusiness } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -82,7 +84,12 @@ function formatAssetType(type: string) {
 }
 
 function getTodayDate() {
-  return new Date().toISOString().split("T")[0]
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = `${now.getMonth() + 1}`.padStart(2, "0")
+  const day = `${now.getDate()}`.padStart(2, "0")
+
+  return `${year}-${month}-${day}`
 }
 
 function generateId() {
@@ -127,20 +134,10 @@ export default function Investments() {
   const [notes, setNotes] = useState("")
   const [date, setDate] = useState(getTodayDate())
 
-  const [search, setSearch] = useState("")
-  const [filter, setFilter] = useState<"all" | AssetType>("all")
-  const [portfolioView, setPortfolioView] = useState<"current" | "invested">(
-    "current"
-  )
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
-
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
-  const [editingHoldingKey, setEditingHoldingKey] = useState<string | null>(null)
-  const [modalMode, setModalMode] = useState<"entry" | "holding">("entry")
-
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState("")
-  const [isPortfolioOpen, setIsPortfolioOpen] = useState(true)
   const [isMonthlyOpen, setIsMonthlyOpen] = useState(false)
   const [isMonthlyListOpen, setIsMonthlyListOpen] = useState(false)
 
@@ -177,7 +174,7 @@ export default function Investments() {
                 ticker: asset.ticker,
                 notes: asset.notes,
                 date: asset.createdAt
-                  ? new Date(asset.createdAt).toISOString().split("T")[0]
+                  ? asset.createdAt.slice(0, 10)
                   : getTodayDate(),
                 accountId: asset.accountId || "main",
                 createdAt: asset.createdAt || new Date().toISOString(),
@@ -228,6 +225,7 @@ export default function Investments() {
           (sum, entry) => sum + entry.amount,
           0
         )
+
         const currentValue =
           typeof holdingValues[key] === "number" ? holdingValues[key] : invested
 
@@ -311,33 +309,6 @@ export default function Investments() {
     0
   )
 
-  const filteredHoldings = useMemo(() => {
-    return holdings.filter((holding) => {
-      const matchesFilter = filter === "all" ? true : holding.type === filter
-      const query = search.toLowerCase()
-
-      const matchesSearch =
-        holding.name.toLowerCase().includes(query) ||
-        holding.type.toLowerCase().includes(query) ||
-        holding.ticker?.toLowerCase().includes(query)
-
-      return matchesFilter && matchesSearch
-    })
-  }, [holdings, filter, search])
-
-  const filteredPeriodEntries = useMemo(() => {
-    return periodEntries.filter((entry) => {
-      const query = search.toLowerCase()
-
-      const matchesSearch =
-        entry.name.toLowerCase().includes(query) ||
-        entry.type.toLowerCase().includes(query) ||
-        entry.ticker?.toLowerCase().includes(query)
-
-      return matchesSearch
-    })
-  }, [periodEntries, search])
-
   const portfolioInsight = useMemo(() => {
     if (holdings.length === 0) {
       return "No data yet — add your first investment to start building your portfolio."
@@ -363,21 +334,17 @@ export default function Investments() {
     setNotes("")
     setDate(getTodayDate())
     setEditingEntryId(null)
-    setEditingHoldingKey(null)
-    setModalMode("entry")
     setError("")
   }
 
   const openCreateModal = () => {
     resetForm()
-    setModalMode("entry")
     setIsModalOpen(true)
   }
 
   const openEditEntryModal = (entry: InvestmentEntry) => {
     const key = getHoldingKey(entry.name, entry.ticker)
 
-    setModalMode("entry")
     setName(entry.name)
     setType(entry.type)
     setAmount(String(entry.amount))
@@ -388,22 +355,6 @@ export default function Investments() {
     setNotes(entry.notes || "")
     setDate(entry.date)
     setEditingEntryId(entry.id)
-    setEditingHoldingKey(null)
-    setError("")
-    setIsModalOpen(true)
-  }
-
-  const openEditHoldingModal = (holding: PortfolioHolding) => {
-    setModalMode("holding")
-    setName(holding.name)
-    setType(holding.type)
-    setAmount("")
-    setCurrentValue(String(holding.currentValue))
-    setTicker(holding.ticker || "")
-    setNotes("")
-    setDate(getTodayDate())
-    setEditingEntryId(null)
-    setEditingHoldingKey(holding.key)
     setError("")
     setIsModalOpen(true)
   }
@@ -415,33 +366,6 @@ export default function Investments() {
 
   const handleSubmit = () => {
     const now = new Date().toISOString()
-
-    if (modalMode === "holding") {
-      const currentValueNumber = Number(currentValue)
-
-      if (
-        !currentValue ||
-        Number.isNaN(currentValueNumber) ||
-        currentValueNumber < 0
-      ) {
-        setError("Please enter a valid current value.")
-        return
-      }
-
-      if (!editingHoldingKey) {
-        setError("Unable to update this holding.")
-        return
-      }
-
-      setHoldingValues((prev) => ({
-        ...prev,
-        [editingHoldingKey]: currentValueNumber,
-      }))
-
-      closeModal()
-      return
-    }
-
     const amountNumber = Number(amount)
     const cleanName = name.trim()
     const cleanTicker = normalizeTicker(ticker)
@@ -559,6 +483,18 @@ export default function Investments() {
                       {formatCurrency(totals.profit, currency)}
                     </span>
                   </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-zinc-500">Performance</span>
+                    <span
+                      className={`font-medium ${
+                        totals.profitPct >= 0 ? "text-green-500" : "text-red-500"
+                      }`}
+                    >
+                      {totals.profitPct >= 0 ? "+" : ""}
+                      {totals.profitPct.toFixed(1)}%
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -591,142 +527,30 @@ export default function Investments() {
             </div>
           </section>
 
-          <section className="mb-6">
-            <button
-              type="button"
-              onClick={() => setIsPortfolioOpen((prev) => !prev)}
-              className="w-full flex items-center justify-between text-left mb-4"
+          <section className="mb-8">
+            <Link
+              href="/investments/portfolio"
+              className="group block rounded-[28px] bg-zinc-900/55 border border-white/5 p-6 sm:p-7 transition-all duration-200 ease-out hover:bg-zinc-900/72 active:scale-[0.995]"
             >
-              <p className="text-white text-sm font-medium">Portfolio</p>
-              <span className="text-[var(--accent)] text-lg">
-                {isPortfolioOpen ? "⌃" : "⌄"}
-              </span>
-            </button>
-
-            {isPortfolioOpen && (
-              <>
-                <div className="rounded-full bg-zinc-900/45 border border-white/5 p-1.5 mb-4">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setPortfolioView("current")}
-                      className={`h-[42px] rounded-full text-sm transition-all duration-150 ease-out ${
-                        portfolioView === "current"
-                          ? "bg-[var(--accent)]/90 text-black"
-                          : "text-zinc-400 hover:text-zinc-200"
-                      }`}
-                    >
-                      Current Value
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPortfolioView("invested")}
-                      className={`h-[42px] rounded-full text-sm transition-all duration-150 ease-out ${
-                        portfolioView === "invested"
-                          ? "bg-[var(--accent)]/90 text-black"
-                          : "text-zinc-400 hover:text-zinc-200"
-                      }`}
-                    >
-                      Invested Only
-                    </button>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/[0.06] border border-[var(--accent)]/[0.14] text-[var(--accent)] transition-colors duration-200 group-hover:bg-[var(--accent)]/[0.08] group-hover:border-[var(--accent)]/[0.18]">
+                    <BriefcaseBusiness size={17} strokeWidth={2} />
                   </div>
-                </div>
 
-                <div className="mb-4">
-                  <select
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value as "all" | AssetType)}
-                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                  >
-                    <option value="all">All types</option>
-                    {assetTypes.map((assetType) => (
-                      <option key={assetType.value} value={assetType.value}>
-                        {assetType.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="mb-4">
-                  <input
-                    placeholder="Search assets"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                  />
-                </div>
-
-                {filteredHoldings.length === 0 ? (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                    <p className="text-zinc-300 text-sm">No investments yet.</p>
-                    <p className="text-zinc-600 text-sm mt-1">
-                      Start by adding your first investment.
+                  <div>
+                    <p className="text-white text-base font-medium">Portfolio</p>
+                    <p className="text-zinc-500 text-sm mt-2">
+                      See your holdings and performance.
                     </p>
                   </div>
-                ) : (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                    {filteredHoldings.map((holding, index) => (
-                      <button
-                        key={holding.key}
-                        type="button"
-                        onClick={() => openEditHoldingModal(holding)}
-                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                          index !== filteredHoldings.length - 1
-                            ? "border-b border-white/5"
-                            : ""
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-zinc-200 truncate">
-                              {holding.name}
-                            </p>
-                            {holding.ticker && (
-                              <span className="text-xs text-zinc-600 uppercase">
-                                {holding.ticker}
-                              </span>
-                            )}
-                          </div>
+                </div>
 
-                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                            <span>{formatAssetType(holding.type)}</span>
-                            <span>•</span>
-                            <span>
-                              Invested {formatCurrency(holding.invested, currency)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p className="text-zinc-300 text-sm">
-                            {formatCurrency(
-                              portfolioView === "current"
-                                ? holding.currentValue
-                                : holding.invested,
-                              currency
-                            )}
-                          </p>
-
-                          {portfolioView === "current" && (
-                            <p
-                              className={`text-[11px] mt-1 ${
-                                holding.profitPct >= 0
-                                  ? "text-green-500"
-                                  : "text-red-500"
-                              }`}
-                            >
-                              {holding.profitPct >= 0 ? "+" : ""}
-                              {holding.profitPct.toFixed(1)}%
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+                <div className="text-zinc-600 transition-all duration-200 group-hover:text-zinc-400 group-hover:translate-x-[1px] group-hover:-translate-y-[1px]">
+                  <ArrowUpRight size={18} strokeWidth={2} />
+                </div>
+              </div>
+            </Link>
           </section>
 
           <section className="mb-24">
@@ -770,7 +594,7 @@ export default function Investments() {
                   </div>
                 </section>
 
-                {filteredPeriodEntries.length === 0 ? (
+                {periodEntries.length === 0 ? (
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
                     <p className="text-zinc-300 text-sm">
                       No investments added in this period.
@@ -796,13 +620,13 @@ export default function Investments() {
 
                     {isMonthlyListOpen && (
                       <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                        {filteredPeriodEntries.map((entry, index) => (
+                        {periodEntries.map((entry, index) => (
                           <button
                             key={entry.id}
                             type="button"
                             onClick={() => openEditEntryModal(entry)}
                             className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                              index !== filteredPeriodEntries.length - 1
+                              index !== periodEntries.length - 1
                                 ? "border-b border-white/5"
                                 : ""
                             }`}
@@ -853,11 +677,7 @@ export default function Investments() {
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
-                  {modalMode === "holding"
-                    ? "Edit holding"
-                    : editingEntryId
-                    ? "Edit investment"
-                    : "New investment"}
+                  {editingEntryId ? "Edit investment" : "New investment"}
                 </p>
 
                 <button
@@ -874,10 +694,7 @@ export default function Investments() {
                   placeholder="Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  disabled={modalMode === "holding"}
-                  className={`${fieldClass} ${
-                    modalMode === "holding" ? "opacity-70" : ""
-                  }`}
+                  className={fieldClass}
                 />
 
                 <div>
@@ -887,10 +704,7 @@ export default function Investments() {
                   <select
                     value={type}
                     onChange={(e) => setType(e.target.value as AssetType)}
-                    disabled={modalMode === "holding"}
-                    className={`${fieldClass} ${
-                      modalMode === "holding" ? "opacity-70" : ""
-                    }`}
+                    className={fieldClass}
                   >
                     {assetTypes.map((assetType) => (
                       <option key={assetType.value} value={assetType.value}>
@@ -903,36 +717,29 @@ export default function Investments() {
                 <input
                   placeholder="Ticker (optional)"
                   value={ticker}
-                  disabled={modalMode === "holding"}
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  className={`${fieldClass} ${
-                    modalMode === "holding" ? "opacity-70" : ""
-                  }`}
+                  className={fieldClass}
                 />
 
-                {modalMode === "entry" && (
-                  <>
-                    <input
-                      placeholder="Invested amount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className={fieldClass}
-                    />
-
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className={fieldClass}
-                    />
-                  </>
-                )}
+                <input
+                  placeholder="Invested amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className={fieldClass}
+                />
 
                 <input
-                  placeholder="Current value"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={fieldClass}
+                />
+
+                <input
+                  placeholder="Current value (optional)"
                   type="number"
                   min="0"
                   step="0.01"
@@ -941,20 +748,18 @@ export default function Investments() {
                   className={fieldClass}
                 />
 
-                {modalMode === "entry" && (
-                  <div>
-                    <label className="text-xs text-zinc-500 mb-2 block">
-                      Notes
-                    </label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      rows={3}
-                      className="w-full bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
-                      placeholder="Optional notes"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="text-xs text-zinc-500 mb-2 block">
+                    Notes
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    className="w-full bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
+                    placeholder="Optional notes"
+                  />
+                </div>
 
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
 
@@ -963,14 +768,10 @@ export default function Investments() {
                   onClick={handleSubmit}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
                 >
-                  {modalMode === "holding"
-                    ? "Save holding"
-                    : editingEntryId
-                    ? "Save investment"
-                    : "Add investment"}
+                  {editingEntryId ? "Save investment" : "Add investment"}
                 </button>
 
-                {editingEntryId && modalMode === "entry" && (
+                {editingEntryId && (
                   <button
                     type="button"
                     onClick={handleDelete}
