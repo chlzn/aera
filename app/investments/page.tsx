@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { History, LayoutGrid, Plus, Wallet } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -138,9 +139,7 @@ function generateId() {
 function getHoldingKey(name: string, ticker?: string) {
   const cleanTicker = ticker?.trim().toUpperCase()
 
-  if (cleanTicker) {
-    return cleanTicker
-  }
+  if (cleanTicker) return cleanTicker
 
   return name.trim().toLowerCase().replace(/\s+/g, "-")
 }
@@ -603,7 +602,7 @@ export default function Portfolio() {
     closeHoldingDetail()
   }
 
-  const handleSubmenuClick = (tab: PortfolioTab | "add") => {
+  const handleQuickAction = (tab: PortfolioTab | "add") => {
     if (tab === "add") {
       openCreateAssetModal()
       return
@@ -615,11 +614,22 @@ export default function Portfolio() {
   const fieldClass =
     "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
 
+  const quickActions: {
+    value: PortfolioTab | "add"
+    label: string
+    icon: typeof LayoutGrid
+  }[] = [
+    { value: "overview", label: "Overview", icon: LayoutGrid },
+    { value: "holdings", label: "Holdings", icon: Wallet },
+    { value: "activity", label: "Activity", icon: History },
+    { value: "add", label: "Add", icon: Plus },
+  ]
+
   return (
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-5">
+          <header className="mb-4">
             <h1 className="text-3xl font-semibold tracking-tight">Portfolio</h1>
             <p className="text-zinc-500 mt-2">
               See your holdings and performance.
@@ -632,39 +642,49 @@ export default function Portfolio() {
             </p>
           </section>
 
-          <nav className="mb-6 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex items-center gap-2 min-w-max">
-              {[
-                { value: "overview", label: "Overview" },
-                { value: "holdings", label: "Holdings" },
-                { value: "activity", label: "Activity" },
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => handleSubmenuClick(item.value as PortfolioTab)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ease-out active:scale-[0.98] ${
-                    activeTab === item.value
-                      ? "bg-[var(--accent)] text-black"
-                      : "bg-zinc-900/55 border border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/75"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+          <nav className="mb-6">
+            <div className="grid grid-cols-4 gap-2">
+              {quickActions.map((item) => {
+                const Icon = item.icon
+                const isActive = item.value !== "add" && activeTab === item.value
+                const isAdd = item.value === "add"
 
-              <button
-                type="button"
-                onClick={() => handleSubmenuClick("add")}
-                className="rounded-full px-4 py-2 text-sm font-medium bg-zinc-900/55 border border-[var(--accent)]/20 text-[var(--accent)] transition-all duration-200 ease-out hover:bg-zinc-900/75 active:scale-[0.98]"
-              >
-                Add Asset
-              </button>
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => handleQuickAction(item.value)}
+                    className="flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                  >
+                    <Icon
+                      size={22}
+                      strokeWidth={2}
+                      className={`transition-colors duration-200 ${
+                        isAdd || isActive
+                          ? "text-[var(--accent)]"
+                          : "text-zinc-500/80"
+                      }`}
+                    />
+
+                    <span
+                      className={`text-[11px] font-medium transition-colors duration-200 ${
+                        isActive
+                          ? "text-white"
+                          : isAdd
+                          ? "text-zinc-300"
+                          : "text-zinc-500/80"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </nav>
 
           {activeTab === "overview" && (
-            <section className="mb-24 space-y-6">
+            <section className="mb-24 space-y-5">
               {groups.length === 0 ? (
                 <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
                   <p className="text-zinc-200 text-sm">No holdings yet.</p>
@@ -675,7 +695,7 @@ export default function Portfolio() {
               ) : (
                 <>
                   <div>
-                    <div className="mb-4">
+                    <div className="mb-3">
                       <p className="text-white text-sm font-medium">
                         Allocation
                       </p>
@@ -710,13 +730,13 @@ export default function Portfolio() {
                   </div>
 
                   <div>
-                    <div className="mb-4">
+                    <div className="mb-3">
                       <p className="text-white text-sm font-medium">
                         Quick summary
                       </p>
                     </div>
 
-                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5 grid gap-4">
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5 grid gap-3">
                       <div className="flex items-center justify-between">
                         <span className="text-zinc-500 text-sm">Holdings</span>
                         <span className="text-white text-sm font-medium">
@@ -731,9 +751,11 @@ export default function Portfolio() {
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-zinc-500 text-sm">Top allocation</span>
-                        <span className="text-white text-sm font-medium">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-zinc-500 text-sm">
+                          Top allocation
+                        </span>
+                        <span className="text-white text-sm font-medium text-right">
                           {topAllocation
                             ? `${topAllocation.label} · ${topAllocation.allocationPct.toFixed(0)}%`
                             : "None"}
@@ -863,29 +885,32 @@ export default function Portfolio() {
 
           {activeTab === "activity" && (
             <section className="mb-24">
-              <div className="mb-6">
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                >
-                  {availablePeriods.map((period) => (
-                    <option key={period} value={period}>
-                      {formatPeriodLabel(period)}
-                    </option>
-                  ))}
-                </select>
+              <div className="mb-5">
+                <p className="text-zinc-500 text-sm mb-1">Invested in</p>
+
+                <div className="relative inline-block">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
+                  >
+                    {availablePeriods.map((period) => (
+                      <option key={period} value={period}>
+                        {formatPeriodLabel(period)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
+                    ⌄
+                  </span>
+                </div>
               </div>
 
               <div className="mb-6">
-                <p className="text-white text-sm font-medium mb-2">
-                  Invested in {formatPeriodLabel(selectedPeriod)}
+                <p className="text-3xl font-semibold tracking-tight text-white">
+                  {formatCurrency(periodInvested, currency)}
                 </p>
-                <div className="rounded-[26px] bg-zinc-900/40 border border-white/5 p-5">
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(periodInvested, currency)}
-                  </p>
-                </div>
               </div>
 
               {periodEntries.length === 0 ? (
