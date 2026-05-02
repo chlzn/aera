@@ -1,7 +1,26 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { History, LayoutGrid, Plus, Tags } from "lucide-react"
+import {
+  Briefcase,
+  Car,
+  Circle,
+  Gamepad2,
+  GraduationCap,
+  HeartPulse,
+  House,
+  Plane,
+  PlusCircle,
+  Receipt,
+  Repeat,
+  RotateCcw,
+  ShoppingBag,
+  Sparkles,
+  TrendingUp,
+  UtensilsCrossed,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -16,8 +35,6 @@ import {
   type PaymentBehavior,
   generateEntriesForPeriod,
 } from "@/lib/spending-automation"
-
-type SpendingTab = "overview" | "groups" | "activity"
 
 type Entry = {
   id: string
@@ -37,6 +54,13 @@ type DisplayEntry = Entry & {
   automationKind?: "recurring" | "installment"
   automationLabel?: string
   paymentBehavior?: PaymentBehavior
+}
+
+type SpendingGroup = {
+  category: EntryCategory
+  total: number
+  entries: DisplayEntry[]
+  isActiveThisMonth: boolean
 }
 
 const incomeCategories: { value: EntryCategory; label: string }[] = [
@@ -61,6 +85,27 @@ const expenseCategories: { value: EntryCategory; label: string }[] = [
   { value: "education", label: "Education" },
   { value: "other", label: "Other" },
 ]
+
+const categoryIcons: Record<EntryCategory, LucideIcon> = {
+  salary: Wallet,
+  freelance: Briefcase,
+  bonus: Sparkles,
+  investment_income: TrendingUp,
+  refund: RotateCcw,
+  housing: House,
+  food: UtensilsCrossed,
+  transport: Car,
+  bills: Receipt,
+  subscription: Repeat,
+  shopping: ShoppingBag,
+  health: HeartPulse,
+  entertainment: Gamepad2,
+  travel: Plane,
+  education: GraduationCap,
+  other: Circle,
+}
+
+const expenseCategoryOrder = expenseCategories.map((item) => item.value)
 
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -125,6 +170,11 @@ function isDue(date: string) {
   return date <= getTodayDate()
 }
 
+function getCategorySortIndex(category: EntryCategory) {
+  const index = expenseCategoryOrder.indexOf(category)
+  return index === -1 ? 999 : index
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
 
@@ -133,7 +183,6 @@ export default function Spending() {
   const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
   const [entriesHydrated, setEntriesHydrated] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<SpendingTab>("overview")
   const [expandedCategory, setExpandedCategory] = useState<EntryCategory | null>(
     null
   )
@@ -159,12 +208,7 @@ export default function Spending() {
   const [installmentCount, setInstallmentCount] = useState("")
   const [automationStartDate, setAutomationStartDate] = useState(getTodayDate())
 
-  const [search, setSearch] = useState("")
-  const [filter, setFilter] = useState<"all" | EntryType>("all")
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
-  const [categoryFilter, setCategoryFilter] = useState<"all" | EntryCategory>(
-    "all"
-  )
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null)
 
@@ -172,7 +216,7 @@ export default function Spending() {
     useState<DisplayEntry | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isScheduledOpen, setIsScheduledOpen] = useState(true)
+  const [isScheduledOpen, setIsScheduledOpen] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -226,10 +270,6 @@ export default function Spending() {
       type === "income" ? incomeCategories[0].value : expenseCategories[0].value
     setCategory(defaultCategory)
   }, [type])
-
-  useEffect(() => {
-    setCategoryFilter("all")
-  }, [filter])
 
   const availablePeriods = useMemo(() => {
     return getAvailablePeriodsFromCurrentYear()
@@ -298,109 +338,68 @@ export default function Spending() {
   const currentCategories =
     type === "income" ? incomeCategories : expenseCategories
 
-  const availableFilterCategories = useMemo(() => {
-    if (filter === "income") return incomeCategories
-    if (filter === "expense") return expenseCategories
-    return [...incomeCategories, ...expenseCategories]
-  }, [filter])
+  const spendingGroups = useMemo<SpendingGroup[]>(() => {
+    const expenseEntries = periodEntries.filter(
+      (entry) => entry.type === "expense"
+    )
 
-  const filteredEntries = useMemo(() => {
-    return periodEntries.filter((entry) => {
-      const matchesType = filter === "all" ? true : entry.type === filter
-      const matchesCategory =
-        categoryFilter === "all" ? true : entry.category === categoryFilter
-      const matchesSearch = entry.description
-        .toLowerCase()
-        .includes(search.toLowerCase())
+    const usedCategories = new Set<EntryCategory>()
 
-      return matchesType && matchesCategory && matchesSearch
+    entries.forEach((entry) => {
+      if (entry.type === "expense") {
+        usedCategories.add(entry.category)
+      }
     })
-  }, [periodEntries, filter, categoryFilter, search])
 
-  const filteredTotal = useMemo(() => {
-    const hasTypeFilter = filter !== "all"
-    const hasCategoryFilter = categoryFilter !== "all"
+    templates.forEach((template) => {
+      if (template.type === "expense") {
+        usedCategories.add(template.category)
+      }
+    })
 
-    if (!hasTypeFilter && !hasCategoryFilter) return 0
+    expenseEntries.forEach((entry) => {
+      usedCategories.add(entry.category)
+    })
 
-    return periodEntries
-      .filter((entry) => {
-        const matchesType = filter === "all" ? true : entry.type === filter
-        const matchesCategory =
-          categoryFilter === "all" ? true : entry.category === categoryFilter
+    scheduledEntries.forEach((entry) => {
+      if (entry.type === "expense") {
+        usedCategories.add(entry.category)
+      }
+    })
 
-        return matchesType && matchesCategory
+    const categories = Array.from(usedCategories).filter((item) =>
+      expenseCategoryOrder.includes(item)
+    )
+
+    return categories
+      .map((categoryName) => {
+        const groupEntries = expenseEntries
+          .filter((entry) => entry.category === categoryName)
+          .sort((a, b) => b.date.localeCompare(a.date))
+
+        const total = groupEntries.reduce((sum, entry) => sum + entry.amount, 0)
+
+        return {
+          category: categoryName,
+          total,
+          entries: groupEntries,
+          isActiveThisMonth: groupEntries.length > 0,
+        }
       })
-      .reduce((sum, entry) => sum + entry.amount, 0)
-  }, [periodEntries, filter, categoryFilter])
-
-  const filteredTotalLabel = useMemo(() => {
-    if (categoryFilter !== "all") {
-      return formatCategory(categoryFilter)
-    }
-
-    if (filter === "income") return "Income"
-    if (filter === "expense") return "Expenses"
-
-    return ""
-  }, [filter, categoryFilter])
-
-  const shouldShowFilteredTotal = filter !== "all" || categoryFilter !== "all"
+      .sort((a, b) => {
+        if (a.isActiveThisMonth && !b.isActiveThisMonth) return -1
+        if (!a.isActiveThisMonth && b.isActiveThisMonth) return 1
+        if (a.total !== b.total) return b.total - a.total
+        return getCategorySortIndex(a.category) - getCategorySortIndex(b.category)
+      })
+  }, [entries, templates, periodEntries, scheduledEntries])
 
   const topCategories = useMemo(() => {
-    const expenseEntries = periodEntries.filter(
-      (entry) => entry.type === "expense"
-    )
-
-    if (expenseEntries.length === 0) return []
-
-    const totals = expenseEntries.reduce<Record<string, number>>((acc, entry) => {
-      acc[entry.category] = (acc[entry.category] || 0) + entry.amount
-      return acc
-    }, {})
-
-    return Object.entries(totals)
-      .filter(([categoryName]) => categoryName !== "other")
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-  }, [periodEntries])
-
-  const spendingGroups = useMemo(() => {
-    const expenseEntries = periodEntries.filter(
-      (entry) => entry.type === "expense"
-    )
-
-    const totals = expenseEntries.reduce<
-      Record<
-        EntryCategory,
-        {
-          total: number
-          entries: DisplayEntry[]
-        }
-      >
-    >((acc, entry) => {
-      if (!acc[entry.category]) {
-        acc[entry.category] = {
-          total: 0,
-          entries: [],
-        }
-      }
-
-      acc[entry.category].total += entry.amount
-      acc[entry.category].entries.push(entry)
-
-      return acc
-    }, {} as Record<EntryCategory, { total: number; entries: DisplayEntry[] }>)
-
-    return Object.entries(totals)
-      .map(([categoryName, data]) => ({
-        category: categoryName as EntryCategory,
-        total: data.total,
-        entries: data.entries.sort((a, b) => b.date.localeCompare(a.date)),
-      }))
-      .filter((group) => group.category !== "other")
+    return spendingGroups
+      .filter((group) => group.total > 0 && group.category !== "other")
       .sort((a, b) => b.total - a.total)
-  }, [periodEntries])
+      .slice(0, 3)
+  }, [spendingGroups])
 
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0 && scheduledEntries.length > 0) {
@@ -809,36 +808,33 @@ export default function Spending() {
     }
   }
 
-  const handleQuickAction = (tab: SpendingTab | "add") => {
-    if (tab === "add") {
-      openCreateModal()
-      return
-    }
-
-    setActiveTab(tab)
-  }
-
   const fieldClass =
     "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
-
-  const quickActions: {
-    value: SpendingTab | "add"
-    label: string
-    icon: typeof LayoutGrid
-  }[] = [
-    { value: "overview", label: "Overview", icon: LayoutGrid },
-    { value: "groups", label: "Groups", icon: Tags },
-    { value: "activity", label: "Activity", icon: History },
-    { value: "add", label: "Add", icon: Plus },
-  ]
 
   return (
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
           <header className="mb-5">
-            <h1 className="text-3xl font-semibold tracking-tight">Spending</h1>
-            <p className="text-zinc-500 mt-2">Track your cash flow clearly.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-semibold tracking-tight">
+                  Spending
+                </h1>
+                <p className="text-zinc-500 mt-2">
+                  Track your cash flow clearly.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-black transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label="Add transaction"
+              >
+                <PlusCircle size={20} strokeWidth={2} />
+              </button>
+            </div>
           </header>
 
           <div className="mb-5">
@@ -881,387 +877,261 @@ export default function Spending() {
                 </span>
               </div>
             </div>
+
+            <p className="text-sm text-zinc-400 leading-relaxed mt-5">
+              {spendingInsight}
+            </p>
           </section>
 
-          <nav className="mb-6">
-            <div className="grid grid-cols-4 gap-2">
-              {quickActions.map((item) => {
-                const Icon = item.icon
-                const isActive = item.value !== "add" && activeTab === item.value
-                const isAdd = item.value === "add"
+          {topCategories.length > 0 && (
+            <section className="mb-7">
+              <p className="text-white text-sm font-medium mb-3">
+                Top categories
+              </p>
 
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => handleQuickAction(item.value)}
-                    className="flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
-                  >
-                    <Icon
-                      size={22}
-                      strokeWidth={2}
-                      className={`transition-colors duration-200 ${
-                        isAdd || isActive
-                          ? "text-[var(--accent)]"
-                          : "text-zinc-500/80"
-                      }`}
-                    />
+              <div className="grid gap-3 text-sm">
+                {topCategories.map((group) => {
+                  const Icon = categoryIcons[group.category]
 
-                    <span
-                      className={`text-[11px] font-medium transition-colors duration-200 ${
-                        isActive
-                          ? "text-white"
-                          : isAdd
-                          ? "text-zinc-300"
-                          : "text-zinc-500/80"
-                      }`}
+                  return (
+                    <div
+                      key={group.category}
+                      className="flex items-center justify-between gap-4"
                     >
-                      {item.label}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </nav>
-
-          {activeTab === "overview" && (
-            <section className="mb-24 space-y-6">
-              <div>
-                <p className="text-sm text-zinc-400 leading-relaxed">
-                  {spendingInsight}
-                </p>
-              </div>
-
-              {topCategories.length > 0 && (
-                <div>
-                  <div className="mb-3">
-                    <p className="text-white text-sm font-medium">
-                      Top categories
-                    </p>
-                    <p className="text-zinc-600 text-xs mt-1">
-                      Your biggest spending areas this month.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 text-sm">
-                    {topCategories.map(([categoryName, total]) => (
-                      <div
-                        key={categoryName}
-                        className="flex items-center justify-between gap-4"
-                      >
-                        <span className="text-zinc-400">
-                          {formatCategory(categoryName)}
-                        </span>
-                        <span className="text-white font-medium">
-                          {formatCurrency(total, currency)}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon
+                          size={16}
+                          strokeWidth={2}
+                          className="text-zinc-500 shrink-0"
+                        />
+                        <span className="text-zinc-400 truncate">
+                          {formatCategory(group.category)}
                         </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {scheduledEntries.length > 0 && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setIsScheduledOpen((prev) => !prev)}
-                    className="w-full flex items-center justify-between text-left mb-3"
-                  >
-                    <div>
-                      <p className="text-white text-sm font-medium">
-                        Scheduled payments
-                      </p>
-                      <p className="text-zinc-600 text-xs mt-1">
-                        Upcoming and unpaid items.
-                      </p>
+                      <span className="text-white font-medium">
+                        {formatCurrency(group.total, currency)}
+                      </span>
                     </div>
-
-                    <span className="text-zinc-500 text-lg">
-                      {isScheduledOpen ? "⌃" : "⌄"}
-                    </span>
-                  </button>
-
-                  {isScheduledOpen && (
-                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                      {scheduledEntries.slice(0, 5).map((entry, index) => {
-                        const behavior = entry.paymentBehavior || "manual"
-                        const isManual = behavior === "manual"
-
-                        return (
-                          <div
-                            key={entry.id}
-                            className={`flex items-center justify-between gap-4 px-5 py-4 ${
-                              index !== Math.min(scheduledEntries.length, 5) - 1
-                                ? "border-b border-white/5"
-                                : ""
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => openTransactionDetail(entry)}
-                              className="min-w-0 text-left flex-1"
-                            >
-                              <p className="text-zinc-200 text-sm truncate">
-                                {entry.description}
-                              </p>
-
-                              <p className="text-xs text-zinc-600 mt-1">
-                                {formatCurrency(entry.amount, currency)} ·{" "}
-                                {formatDate(entry.date)}
-                              </p>
-                            </button>
-
-                            {isManual ? (
-                              <button
-                                type="button"
-                                onClick={() => markScheduledAsPaid(entry)}
-                                className="shrink-0 rounded-full border border-[var(--accent)]/20 bg-[var(--accent)]/[0.07] text-[var(--accent)] px-3 py-2 text-xs font-medium transition-all duration-200 ease-out active:scale-[0.98]"
-                              >
-                                Mark paid
-                              </button>
-                            ) : (
-                              <span className="shrink-0 text-xs text-zinc-600">
-                                Upcoming
-                              </span>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+                  )
+                })}
+              </div>
             </section>
           )}
 
-          {activeTab === "groups" && (
-            <section className="mb-24">
-              {spendingGroups.length === 0 ? (
-                <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
-                  <p className="text-zinc-200 text-sm">No spending groups yet.</p>
-                  <p className="text-zinc-600 text-sm mt-2">
-                    Add expenses to see where your money is going.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <p className="text-zinc-600 text-xs mb-3">
-                    Total Groups · {spendingGroups.length}
-                  </p>
+          <section className="mb-8">
+            <div className="mb-3">
+              <p className="text-white text-sm font-medium">Categories</p>
+              <p className="text-zinc-600 text-xs mt-1">
+                Your money flow by spending area.
+              </p>
+            </div>
 
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                    {spendingGroups.map((group, index) => {
-                      const isExpanded = expandedCategory === group.category
+            {spendingGroups.length === 0 ? (
+              <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
+                <p className="text-zinc-200 text-sm">No categories yet.</p>
+                <p className="text-zinc-600 text-sm mt-2">
+                  Add your first expense to start building your monthly flow.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                {spendingGroups.map((group, index) => {
+                  const isExpanded = expandedCategory === group.category
+                  const Icon = categoryIcons[group.category]
 
-                      return (
-                        <div
-                          key={group.category}
-                          className={
-                            index !== spendingGroups.length - 1
-                              ? "border-b border-white/5"
-                              : ""
-                          }
-                        >
+                  return (
+                    <div
+                      key={group.category}
+                      className={
+                        index !== spendingGroups.length - 1
+                          ? "border-b border-white/5"
+                          : ""
+                      }
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedCategory((prev) =>
+                            prev === group.category ? null : group.category
+                          )
+                        }
+                        className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                      >
+                        <div className="min-w-0 flex items-center gap-3">
+                          <Icon
+                            size={18}
+                            strokeWidth={2}
+                            className={`shrink-0 transition-colors duration-200 ${
+                              isExpanded ? "text-zinc-300" : "text-zinc-500"
+                            }`}
+                          />
+
+                          <div className="min-w-0">
+                            <p className="text-zinc-200 font-medium">
+                              {formatCategory(group.category)}
+                            </p>
+
+                            {!isExpanded && (
+                              <p className="text-xs text-zinc-600 mt-1">
+                                {group.entries.length} transaction
+                                {group.entries.length === 1 ? "" : "s"}
+                                {!group.isActiveThisMonth ? " · no activity yet" : ""}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {!isExpanded && (
+                          <div className="text-right shrink-0">
+                            <p className="text-zinc-300 text-sm font-medium">
+                              {formatCurrency(group.total, currency)}
+                            </p>
+                          </div>
+                        )}
+
+                        <span className="text-zinc-500 text-lg">
+                          {isExpanded ? "⌃" : "⌄"}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="px-5 pb-5">
+                          <div className="mb-4">
+                            <p className="text-zinc-500 text-xs">
+                              Total this month
+                            </p>
+                            <p className="text-white text-lg font-medium mt-1">
+                              {formatCurrency(group.total, currency)}
+                            </p>
+                          </div>
+
+                          {group.entries.length === 0 ? (
+                            <div className="rounded-[22px] bg-zinc-950/25 border border-white/5 p-4">
+                              <p className="text-zinc-400 text-sm">
+                                No activity in this category yet.
+                              </p>
+                              <p className="text-zinc-600 text-sm mt-1">
+                                This group stays here because you used it before.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {group.entries.map((entry) => (
+                                <button
+                                  key={entry.id}
+                                  type="button"
+                                  onClick={() => openTransactionDetail(entry)}
+                                  className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-zinc-200 text-sm truncate">
+                                      {entry.description}
+                                    </p>
+                                    <p className="text-xs text-zinc-600 mt-1">
+                                      {formatDate(entry.date)}
+                                    </p>
+                                  </div>
+
+                                  <span className="text-red-500 text-sm font-medium shrink-0">
+                                    -{formatCurrency(entry.amount, currency)}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
                           <button
                             type="button"
                             onClick={() =>
-                              setExpandedCategory((prev) =>
-                                prev === group.category ? null : group.category
-                              )
+                              openCreateModalForCategory(group.category)
                             }
-                            className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                            className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
                           >
-                            <div className="min-w-0">
-                              <p className="text-zinc-200 font-medium">
-                                {formatCategory(group.category)}
-                              </p>
-
-                              {!isExpanded && (
-                                <p className="text-xs text-zinc-600 mt-1">
-                                  {group.entries.length} transaction
-                                  {group.entries.length === 1 ? "" : "s"}
-                                </p>
-                              )}
-                            </div>
-
-                            {!isExpanded && (
-                              <div className="text-right shrink-0">
-                                <p className="text-zinc-300 text-sm font-medium">
-                                  {formatCurrency(group.total, currency)}
-                                </p>
-                              </div>
-                            )}
-
-                            <span className="text-zinc-500 text-lg">
-                              {isExpanded ? "⌃" : "⌄"}
-                            </span>
+                            + Add {formatCategory(group.category).toLowerCase()}{" "}
+                            expense
                           </button>
-
-                          {isExpanded && (
-                            <div className="px-5 pb-5">
-                              <div className="mb-4">
-                                <p className="text-zinc-500 text-xs">
-                                  Total this month
-                                </p>
-                                <p className="text-white text-lg font-medium mt-1">
-                                  {formatCurrency(group.total, currency)}
-                                </p>
-                              </div>
-
-                              <div className="space-y-1">
-                                {group.entries.map((entry) => (
-                                  <button
-                                    key={entry.id}
-                                    type="button"
-                                    onClick={() => openTransactionDetail(entry)}
-                                    className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-                                  >
-                                    <div className="min-w-0">
-                                      <p className="text-zinc-200 text-sm truncate">
-                                        {entry.description}
-                                      </p>
-                                      <p className="text-xs text-zinc-600 mt-1">
-                                        {formatDate(entry.date)}
-                                      </p>
-                                    </div>
-
-                                    <span className="text-red-500 text-sm font-medium shrink-0">
-                                      -{formatCurrency(entry.amount, currency)}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openCreateModalForCategory(group.category)
-                                }
-                                className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
-                              >
-                                + Add{" "}
-                                {formatCategory(group.category).toLowerCase()}{" "}
-                                expense
-                              </button>
-                            </div>
-                          )}
                         </div>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </section>
-          )}
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
 
-          {activeTab === "activity" && (
+          {scheduledEntries.length > 0 && (
             <section className="mb-24">
-              <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => setIsScheduledOpen((prev) => !prev)}
+                className="w-full flex items-center justify-between text-left mb-3"
+              >
                 <div>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <select
-                      value={filter}
-                      onChange={(e) =>
-                        setFilter(e.target.value as "all" | EntryType)
-                      }
-                      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                    >
-                      <option value="all">All types</option>
-                      <option value="income">Income</option>
-                      <option value="expense">Expenses</option>
-                    </select>
-
-                    <select
-                      value={categoryFilter}
-                      onChange={(e) =>
-                        setCategoryFilter(e.target.value as "all" | EntryCategory)
-                      }
-                      className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                    >
-                      <option value="all">All categories</option>
-                      {availableFilterCategories.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <input
-                    placeholder="Search transactions"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-zinc-900/40 border border-white/5 rounded-[22px] px-4 py-4 outline-none focus:border-[var(--accent)] transition-colors"
-                  />
+                  <p className="text-zinc-300 text-sm font-medium">
+                    Scheduled payments
+                  </p>
+                  <p className="text-zinc-600 text-xs mt-1">
+                    {scheduledEntries.length} upcoming or unpaid
+                  </p>
                 </div>
 
-                {shouldShowFilteredTotal && (
-                  <div>
-                    <p className="text-zinc-500 text-xs">{filteredTotalLabel}</p>
-                    <p className="text-white text-lg font-medium mt-1">
-                      {formatCurrency(filteredTotal, currency)} this month
-                    </p>
-                  </div>
-                )}
+                <span className="text-zinc-500 text-lg">
+                  {isScheduledOpen ? "⌃" : "⌄"}
+                </span>
+              </button>
 
-                {filteredEntries.length === 0 ? (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
-                    <p className="text-zinc-300 text-sm">
-                      No confirmed transactions in this period.
-                    </p>
-                    <p className="text-zinc-600 text-sm mt-1">
-                      Scheduled payments will appear here once paid.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                    {filteredEntries.map((entry, index) => (
-                      <button
+              {isScheduledOpen && (
+                <div className="rounded-[26px] bg-zinc-900/25 border border-white/5 overflow-hidden">
+                  {scheduledEntries.map((entry, index) => {
+                    const behavior = entry.paymentBehavior || "manual"
+                    const isManual = behavior === "manual"
+
+                    return (
+                      <div
                         key={entry.id}
-                        type="button"
-                        onClick={() => openTransactionDetail(entry)}
-                        className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                          index !== filteredEntries.length - 1
+                        className={`flex items-center justify-between gap-4 px-5 py-4 ${
+                          index !== scheduledEntries.length - 1
                             ? "border-b border-white/5"
                             : ""
                         }`}
                       >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-zinc-200 truncate">
-                              {entry.description}
-                            </p>
-
-                            {entry.automationLabel && (
-                              <span className="text-xs text-zinc-500">
-                                {entry.automationLabel}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                            <span>{formatCategory(entry.category)}</span>
-                            <span>•</span>
-                            <span>{formatDate(entry.date)}</span>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`shrink-0 font-medium text-sm ${
-                            entry.type === "income"
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }`}
+                        <button
+                          type="button"
+                          onClick={() => openTransactionDetail(entry)}
+                          className="min-w-0 text-left flex-1"
                         >
-                          {entry.type === "income" ? "+" : "-"}
-                          {formatCurrency(entry.amount, currency)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                          <p className="text-zinc-300 text-sm truncate">
+                            {entry.description}
+                          </p>
+
+                          <p className="text-xs text-zinc-600 mt-1">
+                            {formatCurrency(entry.amount, currency)} ·{" "}
+                            {formatDate(entry.date)}
+                            {entry.automationLabel
+                              ? ` · ${entry.automationLabel}`
+                              : ""}
+                          </p>
+                        </button>
+
+                        {isManual ? (
+                          <button
+                            type="button"
+                            onClick={() => markScheduledAsPaid(entry)}
+                            className="shrink-0 rounded-full border border-[var(--accent)]/15 bg-[var(--accent)]/[0.06] text-[var(--accent)] px-3 py-2 text-xs font-medium transition-all duration-200 ease-out active:scale-[0.98]"
+                          >
+                            Mark paid
+                          </button>
+                        ) : (
+                          <span className="shrink-0 text-xs text-zinc-600">
+                            Upcoming
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </section>
           )}
         </div>
