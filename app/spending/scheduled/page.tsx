@@ -2,7 +2,13 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft, CheckCircle2, Clock3, Repeat } from "lucide-react"
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Repeat,
+} from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
 import {
   formatPeriodLabel,
@@ -16,6 +22,8 @@ import {
   type PaymentBehavior,
   generateEntriesForPeriod,
 } from "@/lib/spending-automation"
+
+type ScheduledKind = "recurring" | "installment"
 
 type DisplayEntry = {
   id: string
@@ -127,12 +135,11 @@ export default function ScheduledPaymentsPage() {
   const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
   const [hydrated, setHydrated] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
+  const [selectedKind, setSelectedKind] = useState<ScheduledKind>("recurring")
 
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null)
-  const [editingKind, setEditingKind] = useState<"recurring" | "installment">(
-    "recurring"
-  )
+  const [editingKind, setEditingKind] = useState<ScheduledKind>("recurring")
 
   const [description, setDescription] = useState("")
   const [type, setType] = useState<EntryType>("expense")
@@ -210,8 +217,17 @@ export default function ScheduledPaymentsPage() {
     return templates.filter(isInstallmentTemplate)
   }, [templates])
 
+  const selectedEntries = useMemo(() => {
+    return scheduledEntries.filter((entry) => entry.automationKind === selectedKind)
+  }, [scheduledEntries, selectedKind])
+
+  const selectedTemplateCount =
+    selectedKind === "recurring"
+      ? recurringTemplates.length
+      : installmentTemplates.length
+
   const paidEntries = useMemo(() => {
-    return scheduledEntries.filter((entry) => {
+    return selectedEntries.filter((entry) => {
       const behavior = entry.paymentBehavior || "manual"
 
       if (behavior === "auto_paid") {
@@ -220,10 +236,10 @@ export default function ScheduledPaymentsPage() {
 
       return paidScheduledIds.includes(entry.id)
     })
-  }, [scheduledEntries, paidScheduledIds])
+  }, [selectedEntries, paidScheduledIds])
 
   const upcomingEntries = useMemo(() => {
-    return scheduledEntries.filter((entry) => {
+    return selectedEntries.filter((entry) => {
       const behavior = entry.paymentBehavior || "manual"
 
       if (behavior === "auto_paid") {
@@ -232,7 +248,7 @@ export default function ScheduledPaymentsPage() {
 
       return !paidScheduledIds.includes(entry.id)
     })
-  }, [scheduledEntries, paidScheduledIds])
+  }, [selectedEntries, paidScheduledIds])
 
   const currentCategories =
     type === "income" ? incomeCategories : expenseCategories
@@ -442,7 +458,7 @@ export default function ScheduledPaymentsPage() {
                   Scheduled
                 </h1>
                 <p className="text-zinc-500 mt-2">
-                  Manage recurring and upcoming payments.
+                  Manage recurring and installment payments.
                 </p>
               </div>
 
@@ -472,16 +488,83 @@ export default function ScheduledPaymentsPage() {
             </div>
           </div>
 
+          <section className="mb-7">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedKind("recurring")}
+                className={`rounded-[24px] border px-4 py-4 text-left transition-all duration-200 active:scale-[0.98] ${
+                  selectedKind === "recurring"
+                    ? "bg-zinc-900/70 border-[var(--accent)]/20"
+                    : "bg-zinc-900/30 border-white/5"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Repeat
+                    size={17}
+                    strokeWidth={2}
+                    className={
+                      selectedKind === "recurring"
+                        ? "text-[var(--accent)]"
+                        : "text-zinc-500"
+                    }
+                  />
+                  <p className="text-white text-sm font-medium">Recurring</p>
+                </div>
+                <p className="text-zinc-600 text-xs mt-2">
+                  {recurringTemplates.length} item
+                  {recurringTemplates.length === 1 ? "" : "s"}
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedKind("installment")}
+                className={`rounded-[24px] border px-4 py-4 text-left transition-all duration-200 active:scale-[0.98] ${
+                  selectedKind === "installment"
+                    ? "bg-zinc-900/70 border-[var(--accent)]/20"
+                    : "bg-zinc-900/30 border-white/5"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <CreditCard
+                    size={17}
+                    strokeWidth={2}
+                    className={
+                      selectedKind === "installment"
+                        ? "text-[var(--accent)]"
+                        : "text-zinc-500"
+                    }
+                  />
+                  <p className="text-white text-sm font-medium">Installments</p>
+                </div>
+                <p className="text-zinc-600 text-xs mt-2">
+                  {installmentTemplates.length} item
+                  {installmentTemplates.length === 1 ? "" : "s"}
+                </p>
+              </button>
+            </div>
+          </section>
+
           <section className="mb-8">
-            <p className="text-white text-sm font-medium mb-3">Upcoming</p>
+            <div className="flex items-end justify-between gap-4 mb-3">
+              <div>
+                <p className="text-white text-sm font-medium">Upcoming</p>
+                <p className="text-zinc-600 text-xs mt-1">
+                  {selectedTemplateCount} total{" "}
+                  {selectedKind === "recurring" ? "recurring item" : "installment plan"}
+                  {selectedTemplateCount === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
 
             {upcomingEntries.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
                 <p className="text-zinc-300 text-sm">
-                  No upcoming scheduled payments.
+                  No upcoming {selectedKind === "recurring" ? "recurring" : "installment"} payments.
                 </p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Recurring and installment items will appear here.
+                  Items will appear here when scheduled for this period.
                 </p>
               </div>
             ) : (
@@ -539,10 +622,7 @@ export default function ScheduledPaymentsPage() {
                         {isManual ? (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              markScheduledAsPaid(entry)
-                            }}
+                            onClick={() => markScheduledAsPaid(entry)}
                             className="mt-2 text-[11px] text-[var(--accent)]"
                           >
                             Mark paid
@@ -562,108 +642,12 @@ export default function ScheduledPaymentsPage() {
 
           <div className="h-px bg-white/5 mb-8" />
 
-          <section className="mb-8">
-            <p className="text-white text-sm font-medium mb-3">Recurring</p>
-
-            {recurringTemplates.length === 0 ? (
-              <p className="text-zinc-600 text-sm">No recurring items yet.</p>
-            ) : (
-              <div className="grid gap-3">
-                {recurringTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => openEditTemplate(template)}
-                    className="flex items-center justify-between gap-4 text-left transition-colors duration-200 hover:bg-white/[0.02] rounded-[18px] py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-zinc-300 text-sm truncate">
-                        {template.description}
-                      </p>
-                      <p className="text-zinc-600 text-xs mt-1">
-                        {template.automation.frequency === "monthly"
-                          ? "Monthly"
-                          : "Weekly"}{" "}
-                        · {formatCategory(template.category)} ·{" "}
-                        {template.automation.paymentBehavior === "auto_paid"
-                          ? "Auto-paid"
-                          : "Manual"}
-                      </p>
-                    </div>
-
-                    <p
-                      className={`text-sm font-medium shrink-0 ${
-                        template.type === "income"
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {template.type === "income" ? "+" : "-"}
-                      {formatCurrency(template.automation.amount, currency)}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="h-px bg-white/5 mb-8" />
-
-          <section className="mb-8">
-            <p className="text-white text-sm font-medium mb-3">Installments</p>
-
-            {installmentTemplates.length === 0 ? (
-              <p className="text-zinc-600 text-sm">No installment plans yet.</p>
-            ) : (
-              <div className="grid gap-3">
-                {installmentTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => openEditTemplate(template)}
-                    className="flex items-center justify-between gap-4 text-left transition-colors duration-200 hover:bg-white/[0.02] rounded-[18px] py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-zinc-300 text-sm truncate">
-                        {template.description}
-                      </p>
-                      <p className="text-zinc-600 text-xs mt-1">
-                        {template.automation.installmentCount} payments ·{" "}
-                        {formatCategory(template.category)} ·{" "}
-                        {template.automation.paymentBehavior === "auto_paid"
-                          ? "Auto-paid"
-                          : "Manual"}
-                      </p>
-                    </div>
-
-                    <p
-                      className={`text-sm font-medium shrink-0 ${
-                        template.type === "income"
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {template.type === "income" ? "+" : "-"}
-                      {formatCurrency(
-                        template.automation.totalAmount /
-                          template.automation.installmentCount,
-                        currency
-                      )}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="h-px bg-white/5 mb-8" />
-
           <section className="mb-24">
             <p className="text-white text-sm font-medium mb-3">Paid</p>
 
             {paidEntries.length === 0 ? (
               <p className="text-zinc-600 text-sm">
-                No scheduled payments paid in this period.
+                No paid {selectedKind === "recurring" ? "recurring" : "installment"} payments in this period.
               </p>
             ) : (
               <div className="rounded-[26px] bg-zinc-900/25 border border-white/5 overflow-hidden">
