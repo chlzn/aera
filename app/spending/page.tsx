@@ -73,16 +73,17 @@ const incomeCategories: { value: EntryCategory; label: string }[] = [
 ]
 
 const expenseCategories: { value: EntryCategory; label: string }[] = [
-  { value: "housing", label: "Housing" },
   { value: "food", label: "Food" },
-  { value: "transport", label: "Transport" },
   { value: "bills", label: "Bills" },
+  { value: "transport", label: "Transport" },
   { value: "subscription", label: "Subscription" },
   { value: "shopping", label: "Shopping" },
   { value: "health", label: "Health" },
   { value: "entertainment", label: "Entertainment" },
   { value: "travel", label: "Travel" },
   { value: "education", label: "Education" },
+  { value: "payments", label: "Payments" },
+  { value: "housing", label: "Housing" },
   { value: "other", label: "Other" },
 ]
 
@@ -102,6 +103,7 @@ const categoryIcons: Record<EntryCategory, LucideIcon> = {
   entertainment: Gamepad2,
   travel: Plane,
   education: GraduationCap,
+  payments: RotateCcw,
   other: Circle,
 }
 
@@ -216,7 +218,7 @@ export default function Spending() {
     useState<DisplayEntry | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isScheduledOpen, setIsScheduledOpen] = useState(false)
+  const [isScheduledPanelOpen, setIsScheduledPanelOpen] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -815,7 +817,7 @@ export default function Spending() {
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-5">
+          <header className="mb-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
@@ -826,23 +828,34 @@ export default function Spending() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-black transition-all duration-200 ease-out active:scale-[0.96]"
-                aria-label="Add transaction"
-              >
-                <PlusCircle size={20} strokeWidth={2} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsScheduledPanelOpen(true)}
+                  className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900/60 border border-white/5 text-zinc-400 transition-all duration-200 ease-out hover:text-white active:scale-[0.96]"
+                  aria-label="Scheduled payments"
+                >
+                  <Repeat size={19} strokeWidth={2} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-black transition-all duration-200 ease-out active:scale-[0.96]"
+                  aria-label="Add transaction"
+                >
+                  <PlusCircle size={20} strokeWidth={2} />
+                </button>
+              </div>
             </div>
           </header>
 
-          <div className="mb-5">
-            <div className="relative">
+          <div className="mb-4">
+            <div className="relative inline-block">
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="w-full appearance-none bg-zinc-900/60 border border-white/5 rounded-[24px] px-4 py-4 pr-12 text-white outline-none transition-all duration-200 ease-out hover:bg-zinc-900/80 active:scale-[0.995]"
+                className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
               >
                 {availablePeriods.map((period) => (
                   <option key={period} value={period}>
@@ -851,13 +864,13 @@ export default function Spending() {
                 ))}
               </select>
 
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--accent)] text-lg">
+              <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
                 ⌄
               </span>
             </div>
           </div>
 
-          <section className="mb-5">
+          <section className="mb-6">
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(net, currency)}
             </p>
@@ -881,50 +894,53 @@ export default function Spending() {
             <p className="text-sm text-zinc-400 leading-relaxed mt-5">
               {spendingInsight}
             </p>
+
+            <div className="h-px bg-white/5 mt-5" />
           </section>
 
           {topCategories.length > 0 && (
-            <section className="mb-7">
-              <p className="text-white text-sm font-medium mb-3">
-                Top categories
-              </p>
+            <>
+              <section className="mb-6">
+                <p className="text-white text-sm font-medium mb-2">
+                  Top categories
+                </p>
 
-              <div className="grid gap-3 text-sm">
-                {topCategories.map((group) => {
-                  const Icon = categoryIcons[group.category]
+                <div className="grid gap-3 text-sm">
+                  {topCategories.map((group) => {
+                    const Icon = categoryIcons[group.category]
 
-                  return (
-                    <div
-                      key={group.category}
-                      className="flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Icon
-                          size={16}
-                          strokeWidth={2}
-                          className="text-zinc-500 shrink-0"
-                        />
-                        <span className="text-zinc-400 truncate">
-                          {formatCategory(group.category)}
+                    return (
+                      <div
+                        key={group.category}
+                        className="flex items-center justify-between gap-4"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon
+                            size={16}
+                            strokeWidth={2}
+                            className="text-zinc-500 shrink-0"
+                          />
+                          <span className="text-zinc-400 truncate">
+                            {formatCategory(group.category)}
+                          </span>
+                        </div>
+
+                        <span className="text-white font-medium">
+                          {formatCurrency(group.total, currency)}
                         </span>
                       </div>
+                    )
+                  })}
+                </div>
+              </section>
 
-                      <span className="text-white font-medium">
-                        {formatCurrency(group.total, currency)}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
+              <div className="h-px bg-white/5 mb-6" />
+            </>
           )}
 
-          <section className="mb-8">
+          <section className="mb-24">
             <div className="mb-3">
               <p className="text-white text-sm font-medium">Categories</p>
-              <p className="text-zinc-600 text-xs mt-1">
-                Your money flow by spending area.
-              </p>
             </div>
 
             {spendingGroups.length === 0 ? (
@@ -956,7 +972,7 @@ export default function Spending() {
                             prev === group.category ? null : group.category
                           )
                         }
-                        className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
                       >
                         <div className="min-w-0 flex items-center gap-3">
                           <Icon
@@ -976,7 +992,9 @@ export default function Spending() {
                               <p className="text-xs text-zinc-600 mt-1">
                                 {group.entries.length} transaction
                                 {group.entries.length === 1 ? "" : "s"}
-                                {!group.isActiveThisMonth ? " · no activity yet" : ""}
+                                {!group.isActiveThisMonth
+                                  ? " · no activity yet"
+                                  : ""}
                               </p>
                             )}
                           </div>
@@ -1059,30 +1077,49 @@ export default function Spending() {
               </div>
             )}
           </section>
+        </div>
+      </main>
 
-          {scheduledEntries.length > 0 && (
-            <section className="mb-24">
-              <button
-                type="button"
-                onClick={() => setIsScheduledOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between text-left mb-3"
-              >
+      {isScheduledPanelOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={() => setIsScheduledPanelOpen(false)}
+        >
+          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-zinc-300 text-sm font-medium">
+                  <p className="text-white text-sm font-medium">
                     Scheduled payments
                   </p>
                   <p className="text-zinc-600 text-xs mt-1">
-                    {scheduledEntries.length} upcoming or unpaid
+                    Upcoming and unpaid transactions.
                   </p>
                 </div>
 
-                <span className="text-zinc-500 text-lg">
-                  {isScheduledOpen ? "⌃" : "⌄"}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setIsScheduledPanelOpen(false)}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
 
-              {isScheduledOpen && (
-                <div className="rounded-[26px] bg-zinc-900/25 border border-white/5 overflow-hidden">
+              {scheduledEntries.length === 0 ? (
+                <div className="rounded-[24px] bg-zinc-950/30 border border-white/5 p-5">
+                  <p className="text-zinc-300 text-sm">
+                    No scheduled payments.
+                  </p>
+                  <p className="text-zinc-600 text-sm mt-1">
+                    Recurring and installment items will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-[24px] bg-zinc-950/25 border border-white/5 overflow-hidden">
                   {scheduledEntries.map((entry, index) => {
                     const behavior = entry.paymentBehavior || "manual"
                     const isManual = behavior === "manual"
@@ -1098,7 +1135,10 @@ export default function Spending() {
                       >
                         <button
                           type="button"
-                          onClick={() => openTransactionDetail(entry)}
+                          onClick={() => {
+                            setIsScheduledPanelOpen(false)
+                            openTransactionDetail(entry)
+                          }}
                           className="min-w-0 text-left flex-1"
                         >
                           <p className="text-zinc-300 text-sm truncate">
@@ -1132,10 +1172,10 @@ export default function Spending() {
                   })}
                 </div>
               )}
-            </section>
-          )}
+            </div>
+          </div>
         </div>
-      </main>
+      )}
 
       {isDetailOpen && selectedTransaction && (
         <div

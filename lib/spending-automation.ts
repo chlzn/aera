@@ -16,6 +16,7 @@ export type EntryCategory =
   | "entertainment"
   | "travel"
   | "education"
+  | "payments"
   | "other"
 
 export type PaymentBehavior = "auto_paid" | "manual"
