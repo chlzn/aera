@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import { History, Layers, LayoutGrid, Plus } from "lucide-react"
-import { useCurrency } from "@/context/currency-context"
+import { useEffect, useMemo, useState } from "react";
+import { FileText, History, Layers, LayoutGrid, Plus } from "lucide-react";
+import { useCurrency } from "@/context/currency-context";
 import {
   formatPeriodLabel,
   getAvailablePeriodsFromCurrentYear,
   getCurrentPeriodKey,
   isSamePeriod,
-} from "@/lib/period"
+} from "@/lib/period";
 
 type AssetType =
   | "crypto"
@@ -17,59 +17,67 @@ type AssetType =
   | "real_estate"
   | "fixed_income"
   | "cash"
-  | "other"
+  | "other";
 
-type PortfolioTab = "overview" | "holdings" | "activity"
+type PortfolioTab = "overview" | "holdings" | "activity" | "review";
 
 type LegacyInvestment = {
-  id: string
-  name: string
-  type: AssetType
-  invested: number
-  currentValue: number
-  ticker?: string
-  notes?: string
-  accountId: string
-  createdAt: string
-  updatedAt: string
-}
+  id: string;
+  name: string;
+  type: AssetType;
+  invested: number;
+  currentValue: number;
+  ticker?: string;
+  notes?: string;
+  accountId: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 type InvestmentEntry = {
-  id: string
-  name: string
-  type: AssetType
-  amount: number
-  ticker?: string
-  notes?: string
-  date: string
-  accountId: string
-  createdAt: string
-  updatedAt: string
-}
+  id: string;
+  name: string;
+  type: AssetType;
+  amount: number;
+  ticker?: string;
+  notes?: string;
+  date: string;
+  accountId: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 type PortfolioHolding = {
-  key: string
-  name: string
-  type: AssetType
-  invested: number
-  currentValue: number
-  profit: number
-  profitPct: number
-  ticker?: string
-  latestDate: string
-  entries: InvestmentEntry[]
-}
+  key: string;
+  name: string;
+  type: AssetType;
+  invested: number;
+  currentValue: number;
+  profit: number;
+  profitPct: number;
+  ticker?: string;
+  latestDate: string;
+  entries: InvestmentEntry[];
+};
 
 type PortfolioGroup = {
-  type: AssetType
-  label: string
-  invested: number
-  currentValue: number
-  profit: number
-  profitPct: number
-  allocationPct: number
-  holdings: PortfolioHolding[]
-}
+  type: AssetType;
+  label: string;
+  invested: number;
+  currentValue: number;
+  profit: number;
+  profitPct: number;
+  allocationPct: number;
+  holdings: PortfolioHolding[];
+};
+
+type MonthlyReview = {
+  period: string;
+  openingValue: number;
+  closingValue: number;
+  notes?: string;
+  updatedAt: string;
+};
 
 const assetTypes: { value: AssetType; label: string }[] = [
   { value: "crypto", label: "Crypto" },
@@ -79,7 +87,7 @@ const assetTypes: { value: AssetType; label: string }[] = [
   { value: "fixed_income", label: "Fixed Income" },
   { value: "cash", label: "Cash" },
   { value: "other", label: "Other" },
-]
+];
 
 const assetTypeLabels: Record<AssetType, string> = {
   crypto: "Crypto",
@@ -89,7 +97,7 @@ const assetTypeLabels: Record<AssetType, string> = {
   fixed_income: "Fixed Income",
   cash: "Cash",
   other: "Other",
-}
+};
 
 const assetTypeOrder: AssetType[] = [
   "crypto",
@@ -99,29 +107,29 @@ const assetTypeOrder: AssetType[] = [
   "fixed_income",
   "cash",
   "other",
-]
+];
 
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
-  }).format(value)
+  }).format(value);
 }
 
 function formatAssetType(type: string) {
   return type
     .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function getTodayDate() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = `${now.getMonth() + 1}`.padStart(2, "0")
-  const day = `${now.getDate()}`.padStart(2, "0")
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
 
-  return `${year}-${month}-${day}`
+  return `${year}-${month}-${day}`;
 }
 
 function generateId() {
@@ -130,80 +138,102 @@ function generateId() {
     globalThis.crypto &&
     typeof globalThis.crypto.randomUUID === "function"
   ) {
-    return globalThis.crypto.randomUUID()
+    return globalThis.crypto.randomUUID();
   }
 
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 function getHoldingKey(name: string, ticker?: string) {
-  const cleanTicker = ticker?.trim().toUpperCase()
+  const cleanTicker = ticker?.trim().toUpperCase();
 
-  if (cleanTicker) return cleanTicker
+  if (cleanTicker) return cleanTicker;
 
-  return name.trim().toLowerCase().replace(/\s+/g, "-")
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 function normalizeTicker(value: string) {
-  const clean = value.trim().toUpperCase()
-  return clean || undefined
+  const clean = value.trim().toUpperCase();
+  return clean || undefined;
 }
 
 export default function Portfolio() {
-  const { currency } = useCurrency()
+  const { currency } = useCurrency();
 
-  const [entries, setEntries] = useState<InvestmentEntry[]>([])
-  const [holdingValues, setHoldingValues] = useState<Record<string, number>>({})
-  const [entriesHydrated, setEntriesHydrated] = useState(false)
+  const [entries, setEntries] = useState<InvestmentEntry[]>([]);
+  const [holdingValues, setHoldingValues] = useState<Record<string, number>>(
+    {},
+  );
+  const [monthlyReviews, setMonthlyReviews] = useState<
+    Record<string, MonthlyReview>
+  >({});
+  const [entriesHydrated, setEntriesHydrated] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<PortfolioTab>("overview")
-  const [expandedGroup, setExpandedGroup] = useState<AssetType | null>(null)
+  const [activeTab, setActiveTab] = useState<PortfolioTab>("overview");
+  const [expandedGroup, setExpandedGroup] = useState<AssetType | null>(null);
 
-  const [name, setName] = useState("")
-  const [type, setType] = useState<AssetType>("crypto")
-  const [amount, setAmount] = useState("")
-  const [currentValue, setCurrentValue] = useState("")
-  const [ticker, setTicker] = useState("")
-  const [notes, setNotes] = useState("")
-  const [date, setDate] = useState(getTodayDate())
+  const [name, setName] = useState("");
+  const [type, setType] = useState<AssetType>("crypto");
+  const [amount, setAmount] = useState("");
+  const [currentValue, setCurrentValue] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(getTodayDate());
 
-  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey());
+  const [reviewOpeningValue, setReviewOpeningValue] = useState("");
+  const [reviewClosingValue, setReviewClosingValue] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const [selectedHoldingKey, setSelectedHoldingKey] = useState<string | null>(
-    null
-  )
-  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false)
-  const [isHoldingDetailOpen, setIsHoldingDetailOpen] = useState(false)
-  const [isInvestMoreOpen, setIsInvestMoreOpen] = useState(false)
-  const [investMoreAmount, setInvestMoreAmount] = useState("")
-  const [investMoreDate, setInvestMoreDate] = useState(getTodayDate())
+    null,
+  );
+  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [isHoldingDetailOpen, setIsHoldingDetailOpen] = useState(false);
+  const [isInvestMoreOpen, setIsInvestMoreOpen] = useState(false);
+  const [investMoreAmount, setInvestMoreAmount] = useState("");
+  const [investMoreDate, setInvestMoreDate] = useState(getTodayDate());
 
-  const [isActivityListOpen, setIsActivityListOpen] = useState(true)
-  const [error, setError] = useState("")
+  const [isActivityListOpen, setIsActivityListOpen] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     try {
-      const savedEntries = localStorage.getItem("investmentEntries")
-      const savedHoldingValues = localStorage.getItem("investmentHoldingValues")
+      const savedEntries = localStorage.getItem("investmentEntries");
+      const savedHoldingValues = localStorage.getItem(
+        "investmentHoldingValues",
+      );
+      const savedMonthlyReviews = localStorage.getItem(
+        "investmentMonthlyReviews",
+      );
+
+      if (savedMonthlyReviews) {
+        const parsedMonthlyReviews = JSON.parse(savedMonthlyReviews);
+        setMonthlyReviews(
+          parsedMonthlyReviews && typeof parsedMonthlyReviews === "object"
+            ? parsedMonthlyReviews
+            : {},
+        );
+      }
 
       if (savedEntries) {
-        const parsedEntries = JSON.parse(savedEntries)
-        setEntries(Array.isArray(parsedEntries) ? parsedEntries : [])
+        const parsedEntries = JSON.parse(savedEntries);
+        setEntries(Array.isArray(parsedEntries) ? parsedEntries : []);
 
         if (savedHoldingValues) {
-          const parsedHoldingValues = JSON.parse(savedHoldingValues)
+          const parsedHoldingValues = JSON.parse(savedHoldingValues);
           setHoldingValues(
             parsedHoldingValues && typeof parsedHoldingValues === "object"
               ? parsedHoldingValues
-              : {}
-          )
+              : {},
+          );
         }
       } else {
-        const legacyInvestments = localStorage.getItem("investments")
+        const legacyInvestments = localStorage.getItem("investments");
 
         if (legacyInvestments) {
-          const parsedLegacy = JSON.parse(legacyInvestments)
+          const parsedLegacy = JSON.parse(legacyInvestments);
 
           if (Array.isArray(parsedLegacy)) {
             const migratedEntries: InvestmentEntry[] = parsedLegacy.map(
@@ -220,58 +250,61 @@ export default function Portfolio() {
                 accountId: asset.accountId || "main",
                 createdAt: asset.createdAt || new Date().toISOString(),
                 updatedAt: asset.updatedAt || new Date().toISOString(),
-              })
-            )
+              }),
+            );
 
             const migratedHoldingValues = parsedLegacy.reduce<
               Record<string, number>
             >((acc, asset: LegacyInvestment) => {
-              const key = getHoldingKey(asset.name, asset.ticker)
-              acc[key] = asset.currentValue || asset.invested || 0
-              return acc
-            }, {})
+              const key = getHoldingKey(asset.name, asset.ticker);
+              acc[key] = asset.currentValue || asset.invested || 0;
+              return acc;
+            }, {});
 
-            setEntries(migratedEntries)
-            setHoldingValues(migratedHoldingValues)
+            setEntries(migratedEntries);
+            setHoldingValues(migratedHoldingValues);
           }
         }
       }
     } catch {
-      setEntries([])
-      setHoldingValues({})
+      setEntries([]);
+      setHoldingValues({});
+      setMonthlyReviews({});
     } finally {
-      setEntriesHydrated(true)
+      setEntriesHydrated(true);
     }
-  }, [])
+  }, []);
 
   const holdings = useMemo<PortfolioHolding[]>(() => {
     const grouped = entries.reduce<Record<string, InvestmentEntry[]>>(
       (acc, entry) => {
-        const key = getHoldingKey(entry.name, entry.ticker)
-        acc[key] = [...(acc[key] || []), entry]
-        return acc
+        const key = getHoldingKey(entry.name, entry.ticker);
+        acc[key] = [...(acc[key] || []), entry];
+        return acc;
       },
-      {}
-    )
+      {},
+    );
 
     return Object.entries(grouped)
       .map(([key, holdingEntries]) => {
         const sortedEntries = [...holdingEntries].sort(
           (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
 
-        const latest = sortedEntries[0]
+        const latest = sortedEntries[0];
         const invested = holdingEntries.reduce(
           (sum, entry) => sum + entry.amount,
-          0
-        )
+          0,
+        );
 
         const currentValue =
-          typeof holdingValues[key] === "number" ? holdingValues[key] : invested
+          typeof holdingValues[key] === "number"
+            ? holdingValues[key]
+            : invested;
 
-        const profit = currentValue - invested
-        const profitPct = invested > 0 ? (profit / invested) * 100 : 0
+        const profit = currentValue - invested;
+        const profitPct = invested > 0 ? (profit / invested) * 100 : 0;
 
         return {
           key,
@@ -284,54 +317,56 @@ export default function Portfolio() {
           profitPct,
           latestDate: latest.updatedAt,
           entries: holdingEntries,
-        }
+        };
       })
-      .sort((a, b) => b.currentValue - a.currentValue)
-  }, [entries, holdingValues])
+      .sort((a, b) => b.currentValue - a.currentValue);
+  }, [entries, holdingValues]);
 
   const totals = useMemo(() => {
     const investedTotal = holdings.reduce(
       (acc, holding) => acc + holding.invested,
-      0
-    )
+      0,
+    );
 
     const currentTotal = holdings.reduce(
       (acc, holding) => acc + holding.currentValue,
-      0
-    )
+      0,
+    );
 
-    const profit = currentTotal - investedTotal
-    const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0
+    const profit = currentTotal - investedTotal;
+    const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0;
 
     return {
       investedTotal,
       currentTotal,
       profit,
       profitPct,
-    }
-  }, [holdings])
+    };
+  }, [holdings]);
 
   const groups = useMemo<PortfolioGroup[]>(() => {
     return assetTypeOrder
       .map((assetType) => {
         const groupHoldings = holdings
           .filter((holding) => holding.type === assetType)
-          .sort((a, b) => b.currentValue - a.currentValue)
+          .sort((a, b) => b.currentValue - a.currentValue);
 
         const invested = groupHoldings.reduce(
           (sum, holding) => sum + holding.invested,
-          0
-        )
+          0,
+        );
 
         const currentValue = groupHoldings.reduce(
           (sum, holding) => sum + holding.currentValue,
-          0
-        )
+          0,
+        );
 
-        const profit = currentValue - invested
-        const profitPct = invested > 0 ? (profit / invested) * 100 : 0
+        const profit = currentValue - invested;
+        const profitPct = invested > 0 ? (profit / invested) * 100 : 0;
         const allocationPct =
-          totals.currentTotal > 0 ? (currentValue / totals.currentTotal) * 100 : 0
+          totals.currentTotal > 0
+            ? (currentValue / totals.currentTotal) * 100
+            : 0;
 
         return {
           type: assetType,
@@ -342,121 +377,226 @@ export default function Portfolio() {
           profitPct,
           allocationPct,
           holdings: groupHoldings,
-        }
+        };
       })
-      .filter((group) => group.holdings.length > 0)
-  }, [holdings, totals.currentTotal])
+      .filter((group) => group.holdings.length > 0);
+  }, [holdings, totals.currentTotal]);
 
   useEffect(() => {
-    if (!entriesHydrated) return
+    if (!entriesHydrated) return;
 
     try {
-      localStorage.setItem("investmentEntries", JSON.stringify(entries))
+      localStorage.setItem("investmentEntries", JSON.stringify(entries));
       localStorage.setItem(
         "investmentHoldingValues",
-        JSON.stringify(holdingValues)
-      )
+        JSON.stringify(holdingValues),
+      );
+      localStorage.setItem(
+        "investmentMonthlyReviews",
+        JSON.stringify(monthlyReviews),
+      );
 
-      const compatibleHoldings: LegacyInvestment[] = holdings.map((holding) => ({
-        id: holding.key,
-        name: holding.name,
-        type: holding.type,
-        invested: holding.invested,
-        currentValue: holding.currentValue,
-        ticker: holding.ticker,
-        accountId: "main",
-        createdAt: holding.latestDate,
-        updatedAt: holding.latestDate,
-      }))
+      const compatibleHoldings: LegacyInvestment[] = holdings.map(
+        (holding) => ({
+          id: holding.key,
+          name: holding.name,
+          type: holding.type,
+          invested: holding.invested,
+          currentValue: holding.currentValue,
+          ticker: holding.ticker,
+          accountId: "main",
+          createdAt: holding.latestDate,
+          updatedAt: holding.latestDate,
+        }),
+      );
 
-      localStorage.setItem("investments", JSON.stringify(compatibleHoldings))
+      localStorage.setItem("investments", JSON.stringify(compatibleHoldings));
     } catch {
       // silent
     }
-  }, [entries, holdingValues, holdings, entriesHydrated])
+  }, [entries, holdingValues, monthlyReviews, holdings, entriesHydrated]);
 
   const availablePeriods = useMemo(() => {
-    return getAvailablePeriodsFromCurrentYear()
-  }, [])
+    return getAvailablePeriodsFromCurrentYear();
+  }, []);
 
   const periodEntries = useMemo(() => {
     return entries
       .filter((entry) => isSamePeriod(entry.date, selectedPeriod))
-      .sort((a, b) => b.date.localeCompare(a.date))
-  }, [entries, selectedPeriod])
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [entries, selectedPeriod]);
 
   const periodInvested = periodEntries.reduce(
     (acc, entry) => acc + entry.amount,
-    0
-  )
+    0,
+  );
+
+  const currentReview = monthlyReviews[selectedPeriod];
+
+  useEffect(() => {
+    setReviewOpeningValue(
+      currentReview ? String(currentReview.openingValue) : "",
+    );
+    setReviewClosingValue(
+      currentReview ? String(currentReview.closingValue) : "",
+    );
+    setReviewNotes(currentReview?.notes || "");
+  }, [currentReview, selectedPeriod]);
+
+  const reviewOpeningNumber = Number(reviewOpeningValue) || 0;
+  const reviewClosingNumber = Number(reviewClosingValue) || 0;
+  const reviewRealProfit =
+    reviewClosingNumber - reviewOpeningNumber - periodInvested;
+  const reviewRealReturn =
+    reviewOpeningNumber > 0
+      ? (reviewRealProfit / reviewOpeningNumber) * 100
+      : 0;
+
+  const monthlyContributionGroups = useMemo(() => {
+    const grouped = periodEntries.reduce<
+      Record<
+        string,
+        {
+          key: string;
+          name: string;
+          ticker?: string;
+          type: AssetType;
+          amount: number;
+          isNewPosition: boolean;
+        }
+      >
+    >((acc, entry) => {
+      const key = getHoldingKey(entry.name, entry.ticker);
+      const previousEntries = entries.filter(
+        (item) =>
+          getHoldingKey(item.name, item.ticker) === key &&
+          item.date.slice(0, 7) < selectedPeriod,
+      );
+
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          name: entry.name,
+          ticker: entry.ticker,
+          type: entry.type,
+          amount: 0,
+          isNewPosition: previousEntries.length === 0,
+        };
+      }
+
+      acc[key].amount += entry.amount;
+      return acc;
+    }, {});
+
+    return Object.values(grouped).sort((a, b) => b.amount - a.amount);
+  }, [entries, periodEntries, selectedPeriod]);
+
+  const bestPerformers = useMemo(() => {
+    return holdings
+      .filter((holding) => holding.invested > 0)
+      .sort((a, b) => b.profitPct - a.profitPct)
+      .slice(0, 3);
+  }, [holdings]);
+
+  const worstPerformers = useMemo(() => {
+    return holdings
+      .filter((holding) => holding.invested > 0)
+      .sort((a, b) => a.profitPct - b.profitPct)
+      .slice(0, 3);
+  }, [holdings]);
+
+  const reviewHistory = useMemo(() => {
+    return Object.values(monthlyReviews)
+      .sort((a, b) => b.period.localeCompare(a.period))
+      .map((review) => {
+        const contributions = entries
+          .filter((entry) => isSamePeriod(entry.date, review.period))
+          .reduce((sum, entry) => sum + entry.amount, 0);
+        const realProfit =
+          review.closingValue - review.openingValue - contributions;
+        const realReturn =
+          review.openingValue > 0
+            ? (realProfit / review.openingValue) * 100
+            : 0;
+
+        return {
+          ...review,
+          contributions,
+          realProfit,
+          realReturn,
+        };
+      });
+  }, [entries, monthlyReviews]);
 
   const selectedHolding = useMemo(() => {
-    return holdings.find((holding) => holding.key === selectedHoldingKey) || null
-  }, [holdings, selectedHoldingKey])
+    return (
+      holdings.find((holding) => holding.key === selectedHoldingKey) || null
+    );
+  }, [holdings, selectedHoldingKey]);
 
-  const topAllocation = groups[0]
+  const topAllocation = groups[0];
 
   const resetAssetForm = () => {
-    setName("")
-    setType("crypto")
-    setAmount("")
-    setCurrentValue("")
-    setTicker("")
-    setNotes("")
-    setDate(getTodayDate())
-    setEditingEntryId(null)
-    setError("")
-  }
+    setName("");
+    setType("crypto");
+    setAmount("");
+    setCurrentValue("");
+    setTicker("");
+    setNotes("");
+    setDate(getTodayDate());
+    setEditingEntryId(null);
+    setError("");
+  };
 
   const openCreateAssetModal = () => {
-    resetAssetForm()
-    setIsAssetModalOpen(true)
-  }
+    resetAssetForm();
+    setIsAssetModalOpen(true);
+  };
 
   const openEditEntryModal = (entry: InvestmentEntry) => {
-    const key = getHoldingKey(entry.name, entry.ticker)
+    const key = getHoldingKey(entry.name, entry.ticker);
 
-    setName(entry.name)
-    setType(entry.type)
-    setAmount(String(entry.amount))
+    setName(entry.name);
+    setType(entry.type);
+    setAmount(String(entry.amount));
     setCurrentValue(
-      typeof holdingValues[key] === "number" ? String(holdingValues[key]) : ""
-    )
-    setTicker(entry.ticker || "")
-    setNotes(entry.notes || "")
-    setDate(entry.date)
-    setEditingEntryId(entry.id)
-    setError("")
-    setIsAssetModalOpen(true)
-  }
+      typeof holdingValues[key] === "number" ? String(holdingValues[key]) : "",
+    );
+    setTicker(entry.ticker || "");
+    setNotes(entry.notes || "");
+    setDate(entry.date);
+    setEditingEntryId(entry.id);
+    setError("");
+    setIsAssetModalOpen(true);
+  };
 
   const closeAssetModal = () => {
-    setIsAssetModalOpen(false)
-    resetAssetForm()
-  }
+    setIsAssetModalOpen(false);
+    resetAssetForm();
+  };
 
   const handleAssetSubmit = () => {
-    const now = new Date().toISOString()
-    const amountNumber = Number(amount)
-    const cleanName = name.trim()
-    const cleanTicker = normalizeTicker(ticker)
+    const now = new Date().toISOString();
+    const amountNumber = Number(amount);
+    const cleanName = name.trim();
+    const cleanTicker = normalizeTicker(ticker);
 
     if (!cleanName) {
-      setError("Please add an asset name.")
-      return
+      setError("Please add an asset name.");
+      return;
     }
 
     if (!amount || Number.isNaN(amountNumber) || amountNumber <= 0) {
-      setError("Please enter a valid invested amount.")
-      return
+      setError("Please enter a valid invested amount.");
+      return;
     }
 
     if (!date) {
-      setError("Please select a date.")
-      return
+      setError("Please select a date.");
+      return;
     }
 
-    const newKey = getHoldingKey(cleanName, cleanTicker)
+    const newKey = getHoldingKey(cleanName, cleanTicker);
 
     if (editingEntryId) {
       setEntries((prev) =>
@@ -472,9 +612,9 @@ export default function Portfolio() {
                 date,
                 updatedAt: now,
               }
-            : entry
-        )
-      )
+            : entry,
+        ),
+      );
     } else {
       const newEntry: InvestmentEntry = {
         id: generateId(),
@@ -487,103 +627,103 @@ export default function Portfolio() {
         accountId: "main",
         createdAt: now,
         updatedAt: now,
-      }
+      };
 
-      setEntries((prev) => [newEntry, ...prev])
+      setEntries((prev) => [newEntry, ...prev]);
     }
 
     if (currentValue.trim()) {
-      const currentValueNumber = Number(currentValue)
+      const currentValueNumber = Number(currentValue);
 
       if (Number.isNaN(currentValueNumber) || currentValueNumber < 0) {
-        setError("Please enter a valid current value.")
-        return
+        setError("Please enter a valid current value.");
+        return;
       }
 
       setHoldingValues((prev) => ({
         ...prev,
         [newKey]: currentValueNumber,
-      }))
+      }));
     }
 
-    closeAssetModal()
-  }
+    closeAssetModal();
+  };
 
   const handleDeleteEntry = () => {
-    if (!editingEntryId) return
+    if (!editingEntryId) return;
 
-    setEntries((prev) => prev.filter((entry) => entry.id !== editingEntryId))
-    closeAssetModal()
-  }
+    setEntries((prev) => prev.filter((entry) => entry.id !== editingEntryId));
+    closeAssetModal();
+  };
 
   const openHoldingDetail = (holding: PortfolioHolding) => {
-    setSelectedHoldingKey(holding.key)
-    setCurrentValue(String(holding.currentValue))
-    setError("")
-    setIsHoldingDetailOpen(true)
-  }
+    setSelectedHoldingKey(holding.key);
+    setCurrentValue(String(holding.currentValue));
+    setError("");
+    setIsHoldingDetailOpen(true);
+  };
 
   const closeHoldingDetail = () => {
-    setIsHoldingDetailOpen(false)
-    setSelectedHoldingKey(null)
-    setCurrentValue("")
-    setError("")
-  }
+    setIsHoldingDetailOpen(false);
+    setSelectedHoldingKey(null);
+    setCurrentValue("");
+    setError("");
+  };
 
   const handleSaveHolding = () => {
-    if (!selectedHolding) return
+    if (!selectedHolding) return;
 
-    const parsedCurrentValue = Number(currentValue)
+    const parsedCurrentValue = Number(currentValue);
 
     if (
       !currentValue ||
       Number.isNaN(parsedCurrentValue) ||
       parsedCurrentValue < 0
     ) {
-      setError("Please enter a valid current value.")
-      return
+      setError("Please enter a valid current value.");
+      return;
     }
 
     setHoldingValues((prev) => ({
       ...prev,
       [selectedHolding.key]: parsedCurrentValue,
-    }))
+    }));
 
-    closeHoldingDetail()
-  }
+    closeHoldingDetail();
+  };
 
   const openInvestMore = () => {
-    if (!selectedHolding) return
+    if (!selectedHolding) return;
 
-    setInvestMoreAmount("")
-    setInvestMoreDate(getTodayDate())
-    setError("")
-    setIsInvestMoreOpen(true)
-  }
+    setInvestMoreAmount("");
+    setInvestMoreDate(getTodayDate());
+    setError("");
+    setIsInvestMoreOpen(true);
+  };
 
   const closeInvestMore = () => {
-    setIsInvestMoreOpen(false)
-    setInvestMoreAmount("")
-    setInvestMoreDate(getTodayDate())
-    setError("")
-  }
+    setIsInvestMoreOpen(false);
+    setInvestMoreAmount("");
+    setInvestMoreDate(getTodayDate());
+    setError("");
+  };
 
   const handleInvestMore = () => {
-    if (!selectedHolding) return
+    if (!selectedHolding) return;
 
-    const parsedAmount = Number(investMoreAmount)
+    const parsedAmount = Number(investMoreAmount);
 
     if (!investMoreAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError("Please enter a valid amount.")
-      return
+      setError("Please enter a valid amount.");
+      return;
     }
 
     if (!investMoreDate) {
-      setError("Please select a date.")
-      return
+      setError("Please select a date.");
+      return;
     }
 
-    const now = new Date().toISOString()
+    const now = new Date().toISOString();
 
     const newEntry: InvestmentEntry = {
       id: generateId(),
@@ -595,35 +735,72 @@ export default function Portfolio() {
       accountId: "main",
       createdAt: now,
       updatedAt: now,
-    }
+    };
 
-    setEntries((prev) => [newEntry, ...prev])
-    closeInvestMore()
-    closeHoldingDetail()
-  }
+    setEntries((prev) => [newEntry, ...prev]);
+    closeInvestMore();
+    closeHoldingDetail();
+  };
 
   const handleQuickAction = (tab: PortfolioTab | "add") => {
     if (tab === "add") {
-      openCreateAssetModal()
-      return
+      openCreateAssetModal();
+      return;
     }
 
-    setActiveTab(tab)
-  }
+    setActiveTab(tab);
+  };
+
+  const handleSaveMonthlyReview = () => {
+    const openingNumber = Number(reviewOpeningValue);
+    const closingNumber = Number(reviewClosingValue);
+
+    if (
+      !reviewOpeningValue ||
+      Number.isNaN(openingNumber) ||
+      openingNumber < 0
+    ) {
+      setError("Please enter a valid opening value.");
+      return;
+    }
+
+    if (
+      !reviewClosingValue ||
+      Number.isNaN(closingNumber) ||
+      closingNumber < 0
+    ) {
+      setError("Please enter a valid closing value.");
+      return;
+    }
+
+    setMonthlyReviews((prev) => ({
+      ...prev,
+      [selectedPeriod]: {
+        period: selectedPeriod,
+        openingValue: openingNumber,
+        closingValue: closingNumber,
+        notes: reviewNotes.trim() || undefined,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+
+    setError("");
+  };
 
   const fieldClass =
-    "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
+    "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors";
 
   const quickActions: {
-    value: PortfolioTab | "add"
-    label: string
-    icon: typeof LayoutGrid
+    value: PortfolioTab | "add";
+    label: string;
+    icon: typeof LayoutGrid;
   }[] = [
     { value: "overview", label: "Overview", icon: LayoutGrid },
     { value: "holdings", label: "Holdings", icon: Layers },
     { value: "activity", label: "Activity", icon: History },
+    { value: "review", label: "Review", icon: FileText },
     { value: "add", label: "Add", icon: Plus },
-  ]
+  ];
 
   return (
     <>
@@ -643,11 +820,12 @@ export default function Portfolio() {
           </section>
 
           <nav className="mb-5">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {quickActions.map((item) => {
-                const Icon = item.icon
-                const isActive = item.value !== "add" && activeTab === item.value
-                const isAdd = item.value === "add"
+                const Icon = item.icon;
+                const isActive =
+                  item.value !== "add" && activeTab === item.value;
+                const isAdd = item.value === "add";
 
                 return (
                   <button
@@ -671,14 +849,14 @@ export default function Portfolio() {
                         isActive
                           ? "text-white"
                           : isAdd
-                          ? "text-zinc-300"
-                          : "text-zinc-500/80"
+                            ? "text-zinc-300"
+                            : "text-zinc-500/80"
                       }`}
                     >
                       {item.label}
                     </span>
                   </button>
-                )
+                );
               })}
             </div>
           </nav>
@@ -783,7 +961,7 @@ export default function Portfolio() {
 
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
                     {groups.map((group, groupIndex) => {
-                      const isExpanded = expandedGroup === group.type
+                      const isExpanded = expandedGroup === group.type;
 
                       return (
                         <div
@@ -798,7 +976,7 @@ export default function Portfolio() {
                             type="button"
                             onClick={() =>
                               setExpandedGroup((prev) =>
-                                prev === group.type ? null : group.type
+                                prev === group.type ? null : group.type,
                               )
                             }
                             className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
@@ -859,7 +1037,7 @@ export default function Portfolio() {
                                       <p className="text-zinc-300 text-sm font-medium">
                                         {formatCurrency(
                                           holding.currentValue,
-                                          currency
+                                          currency,
                                         )}
                                       </p>
                                       <p
@@ -879,7 +1057,7 @@ export default function Portfolio() {
                             </div>
                           )}
                         </div>
-                      )
+                      );
                     })}
                   </div>
                 </>
@@ -982,6 +1160,329 @@ export default function Portfolio() {
                   )}
                 </div>
               )}
+            </section>
+          )}
+
+          {activeTab === "review" && (
+            <section className="mb-24 space-y-7">
+              <div>
+                <p className="text-white text-sm font-medium mb-1">
+                  Monthly Review
+                </p>
+
+                <div className="relative inline-block">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
+                  >
+                    {availablePeriods.map((period) => (
+                      <option key={period} value={period}>
+                        {formatPeriodLabel(period)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
+                    ⌄
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-zinc-500 text-sm mb-3">Real Return</p>
+                <p
+                  className={`text-5xl font-semibold tracking-tight ${
+                    reviewRealReturn >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {reviewRealReturn >= 0 ? "+" : ""}
+                  {reviewRealReturn.toFixed(1)}%
+                </p>
+                <p
+                  className={`text-sm mt-3 ${
+                    reviewRealProfit >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {reviewRealProfit >= 0 ? "+" : ""}
+                  {formatCurrency(reviewRealProfit, currency)} real profit
+                </p>
+              </div>
+
+              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
+                <div className="grid gap-3 text-sm">
+                  <label className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Opening Value</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={reviewOpeningValue}
+                      onChange={(e) => setReviewOpeningValue(e.target.value)}
+                      placeholder="0"
+                      className="w-32 bg-transparent text-right text-white font-medium outline-none placeholder:text-zinc-700"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Contributions</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(periodInvested, currency)}
+                    </span>
+                  </div>
+
+                  <label className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Closing Value</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={reviewClosingValue}
+                      onChange={(e) => setReviewClosingValue(e.target.value)}
+                      placeholder="0"
+                      className="w-32 bg-transparent text-right text-white font-medium outline-none placeholder:text-zinc-700"
+                    />
+                  </label>
+
+                  <div className="h-px bg-white/5 my-1" />
+
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Real Profit</span>
+                    <span
+                      className={`font-medium ${
+                        reviewRealProfit >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {reviewRealProfit >= 0 ? "+" : ""}
+                      {formatCurrency(reviewRealProfit, currency)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Real Return</span>
+                    <span
+                      className={`font-medium ${
+                        reviewRealReturn >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {reviewRealReturn >= 0 ? "+" : ""}
+                      {reviewRealReturn.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+
+                {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
+
+                <button
+                  type="button"
+                  onClick={handleSaveMonthlyReview}
+                  className="mt-5 w-full rounded-full bg-[var(--accent)] text-black h-[48px] text-sm font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98]"
+                >
+                  Save monthly review
+                </button>
+              </div>
+
+              <div className="h-px bg-white/5" />
+
+              <div>
+                <p className="text-white text-sm font-medium mb-3">
+                  New contributions
+                </p>
+
+                {monthlyContributionGroups.length === 0 ? (
+                  <p className="text-zinc-600 text-sm">
+                    No contributions in this period.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 text-sm">
+                    {monthlyContributionGroups.map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-zinc-300 truncate">
+                              {item.name}
+                            </p>
+                            {item.ticker && (
+                              <span className="text-xs text-zinc-600 uppercase">
+                                {item.ticker}
+                              </span>
+                            )}
+                            {item.isNewPosition && (
+                              <span className="text-[11px] text-[var(--accent)]">
+                                New position
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-600 mt-1">
+                            {formatAssetType(item.type)}
+                          </p>
+                        </div>
+
+                        <p className="text-white font-medium shrink-0">
+                          +{formatCurrency(item.amount, currency)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-px bg-white/5" />
+
+              <div>
+                <p className="text-white text-sm font-medium mb-3">
+                  Allocation
+                </p>
+
+                {groups.length === 0 ? (
+                  <p className="text-zinc-600 text-sm">No allocation yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {groups.map((group) => (
+                      <div key={group.type}>
+                        <div className="flex items-center justify-between gap-4 mb-2 text-sm">
+                          <span className="text-zinc-400">{group.label}</span>
+                          <span className="text-white font-medium">
+                            {group.allocationPct.toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-[var(--accent)]/70"
+                            style={{
+                              width: `${Math.min(group.allocationPct, 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-px bg-white/5" />
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <p className="text-white text-sm font-medium mb-3">
+                    Best performers
+                  </p>
+
+                  {bestPerformers.length === 0 ? (
+                    <p className="text-zinc-600 text-sm">No performers yet.</p>
+                  ) : (
+                    <div className="grid gap-3 text-sm">
+                      {bestPerformers.map((holding) => (
+                        <div
+                          key={holding.key}
+                          className="flex items-center justify-between gap-4"
+                        >
+                          <span className="text-zinc-300 truncate">
+                            {holding.ticker || holding.name}
+                          </span>
+                          <span className="text-green-500 font-medium">
+                            +{holding.profitPct.toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-white text-sm font-medium mb-3">
+                    Worst performers
+                  </p>
+
+                  {worstPerformers.length === 0 ? (
+                    <p className="text-zinc-600 text-sm">No performers yet.</p>
+                  ) : (
+                    <div className="grid gap-3 text-sm">
+                      {worstPerformers.map((holding) => (
+                        <div
+                          key={holding.key}
+                          className="flex items-center justify-between gap-4"
+                        >
+                          <span className="text-zinc-300 truncate">
+                            {holding.ticker || holding.name}
+                          </span>
+                          <span
+                            className={`font-medium ${
+                              holding.profitPct >= 0
+                                ? "text-green-500"
+                                : "text-red-500"
+                            }`}
+                          >
+                            {holding.profitPct >= 0 ? "+" : ""}
+                            {holding.profitPct.toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="h-px bg-white/5" />
+
+              <div>
+                <label className="text-white text-sm font-medium mb-3 block">
+                  Monthly notes
+                </label>
+                <textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Add strategy notes or context for this month."
+                  className="w-full bg-zinc-900/35 border border-white/5 rounded-[22px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none placeholder:text-zinc-700"
+                />
+              </div>
+
+              <div className="h-px bg-white/5" />
+
+              <div>
+                <p className="text-white text-sm font-medium mb-3">
+                  Review history
+                </p>
+
+                {reviewHistory.length === 0 ? (
+                  <p className="text-zinc-600 text-sm">
+                    Saved monthly reviews will appear here.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 text-sm">
+                    {reviewHistory.map((review) => (
+                      <button
+                        key={review.period}
+                        type="button"
+                        onClick={() => setSelectedPeriod(review.period)}
+                        className="flex items-center justify-between gap-4 text-left"
+                      >
+                        <span className="text-zinc-400">
+                          {formatPeriodLabel(review.period)}
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            review.realReturn >= 0
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {review.realReturn >= 0 ? "+" : ""}
+                          {review.realReturn.toFixed(1)}%
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </section>
           )}
         </div>
@@ -1279,5 +1780,5 @@ export default function Portfolio() {
         </div>
       )}
     </>
-  )
+  );
 }
