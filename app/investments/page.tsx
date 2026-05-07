@@ -215,10 +215,10 @@ export default function Portfolio() {
   const [reviewNotes, setReviewNotes] = useState("");
   const [isReviewDirty, setIsReviewDirty] = useState(false);
   const [isNewPositionsOpen, setIsNewPositionsOpen] = useState(false);
-  const [isAddedContributionsOpen, setIsAddedContributionsOpen] =
-    useState(false);
   const [isManualCorrectionsOpen, setIsManualCorrectionsOpen] = useState(false);
   const [isAnnualReviewOpen, setIsAnnualReviewOpen] = useState(false);
+  const [isPerformanceHighlightsOpen, setIsPerformanceHighlightsOpen] =
+    useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const [selectedHoldingKey, setSelectedHoldingKey] = useState<string | null>(
@@ -633,7 +633,6 @@ export default function Portfolio() {
     setReviewNotes(review?.notes || "");
     setIsReviewDirty(false);
     setIsNewPositionsOpen(false);
-    setIsAddedContributionsOpen(false);
     setIsManualCorrectionsOpen(false);
     setIsAnnualReviewOpen(false);
   }, [monthlyReviews, selectedPeriod]);
@@ -1255,28 +1254,38 @@ export default function Portfolio() {
 
           {activeTab === "review" && (
             <section className="mb-24">
-              <div className="mb-5">
-                <p className="text-white text-sm font-medium mb-1">
-                  Monthly Review
-                </p>
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-white text-sm font-medium mb-1">
+                    Monthly Review
+                  </p>
 
-                <div className="relative inline-block">
-                  <select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
-                  >
-                    {availablePeriods.map((period) => (
-                      <option key={period} value={period}>
-                        {formatPeriodLabel(period)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative inline-block">
+                    <select
+                      value={selectedPeriod}
+                      onChange={(e) => setSelectedPeriod(e.target.value)}
+                      className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
+                    >
+                      {availablePeriods.map((period) => (
+                        <option key={period} value={period}>
+                          {formatPeriodLabel(period)}
+                        </option>
+                      ))}
+                    </select>
 
-                  <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
-                    ⌄
-                  </span>
+                    <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
+                      ⌄
+                    </span>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsManualCorrectionsOpen((prev) => !prev)}
+                  className="mt-1 text-zinc-500 text-sm transition-colors duration-200 hover:text-white"
+                >
+                  {isManualCorrectionsOpen ? "Close" : "Edit"}
+                </button>
               </div>
 
               <div className="mb-7">
@@ -1362,202 +1371,71 @@ export default function Portfolio() {
                 </div>
               </div>
 
-              <div className="h-px bg-white/5 mb-6" />
-
-              <div className="mb-7 grid gap-6">
-                <div>
-                  <p className="text-white text-sm font-medium mb-3">
-                    Best performers
-                  </p>
-                  {bestPerformers.length === 0 ? (
-                    <p className="text-zinc-600 text-sm">
-                      No performance data yet.
-                    </p>
-                  ) : (
-                    <div className="grid gap-3 text-sm">
-                      {bestPerformers.map((holding) => (
-                        <div
-                          key={holding.key}
-                          className="flex items-center justify-between gap-4"
-                        >
-                          <p className="text-zinc-300 truncate">
-                            {holding.name}
-                          </p>
-                          <span className="text-green-500 font-medium">
-                            {formatSignedPercent(holding.profitPct)}
-                          </span>
-                        </div>
-                      ))}
+              {isManualCorrectionsOpen && (
+                <div className="mb-7 rounded-[26px] bg-zinc-900/25 border border-white/5 p-5">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                      <p className="text-white text-sm font-medium">
+                        Manual Corrections
+                      </p>
+                      <p className="text-zinc-600 text-xs mt-1">
+                        Adjust values if the automatic review needs correction.
+                      </p>
                     </div>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-white text-sm font-medium mb-3">
-                    Worst performers
-                  </p>
-                  {worstPerformers.length === 0 ? (
-                    <p className="text-zinc-600 text-sm">
-                      No performance data yet.
-                    </p>
-                  ) : (
-                    <div className="grid gap-3 text-sm">
-                      {worstPerformers.map((holding) => (
-                        <div
-                          key={holding.key}
-                          className="flex items-center justify-between gap-4"
-                        >
-                          <p className="text-zinc-300 truncate">
-                            {holding.name}
-                          </p>
-                          <span className="text-red-500 font-medium">
-                            {formatSignedPercent(holding.profitPct)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {(contributionGroups.newPositions.length > 0 ||
-                contributionGroups.addedThisMonth.length > 0) && (
-                <>
-                  <div className="h-px bg-white/5 mb-6" />
-
-                  <div className="mb-7 space-y-6">
-                    {contributionGroups.newPositions.length > 0 && (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setIsNewPositionsOpen((prev) => !prev)}
-                          className="w-full flex items-center justify-between text-left"
-                        >
-                          <div>
-                            <p className="text-white text-sm font-medium">
-                              New Positions
-                            </p>
-                            <p className="text-zinc-600 text-xs mt-1">
-                              {contributionGroups.newPositions.length} new
-                              position
-                              {contributionGroups.newPositions.length === 1
-                                ? ""
-                                : "s"}{" "}
-                              created
-                            </p>
-                          </div>
-                          <span className="text-zinc-500 text-lg">
-                            {isNewPositionsOpen ? "⌃" : "⌄"}
-                          </span>
-                        </button>
-
-                        {isNewPositionsOpen && (
-                          <div className="grid gap-3 text-sm mt-4">
-                            {contributionGroups.newPositions.map((item) => (
-                              <div
-                                key={item.key}
-                                className="flex items-center justify-between gap-4"
-                              >
-                                <div className="min-w-0">
-                                  <p className="text-zinc-300 truncate">
-                                    {item.name}
-                                  </p>
-                                  <p className="text-zinc-600 text-xs mt-1">
-                                    {formatAssetType(item.type)}
-                                  </p>
-                                </div>
-                                <span className="text-white font-medium shrink-0">
-                                  +{formatCurrency(item.amount, currency)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {contributionGroups.addedThisMonth.length > 0 && (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setIsAddedContributionsOpen((prev) => !prev)
-                          }
-                          className="w-full flex items-center justify-between text-left"
-                        >
-                          <div>
-                            <p className="text-white text-sm font-medium">
-                              Added This Month
-                            </p>
-                            <p className="text-zinc-600 text-xs mt-1">
-                              {contributionGroups.addedThisMonth.length}{" "}
-                              existing position
-                              {contributionGroups.addedThisMonth.length === 1
-                                ? ""
-                                : "s"}{" "}
-                              received capital
-                            </p>
-                          </div>
-                          <span className="text-zinc-500 text-lg">
-                            {isAddedContributionsOpen ? "⌃" : "⌄"}
-                          </span>
-                        </button>
-
-                        {isAddedContributionsOpen && (
-                          <div className="grid gap-3 text-sm mt-4">
-                            {contributionGroups.addedThisMonth.map((item) => (
-                              <div
-                                key={item.key}
-                                className="flex items-center justify-between gap-4"
-                              >
-                                <div className="min-w-0">
-                                  <p className="text-zinc-300 truncate">
-                                    {item.name}
-                                  </p>
-                                  <p className="text-zinc-600 text-xs mt-1">
-                                    {formatAssetType(item.type)}
-                                  </p>
-                                </div>
-                                <span className="text-white font-medium shrink-0">
-                                  +{formatCurrency(item.amount, currency)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
-                </>
+
+                  <div className="grid gap-3">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder={`Opening · ${formatCurrency(autoOpeningValue, currency)}`}
+                      value={reviewOpeningValue}
+                      onChange={(e) => {
+                        setReviewOpeningValue(e.target.value);
+                        markReviewDirty();
+                      }}
+                      className={fieldClass}
+                    />
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder={`Contributions · ${formatCurrency(periodInvested, currency)}`}
+                      value={reviewContributionsValue}
+                      onChange={(e) => {
+                        setReviewContributionsValue(e.target.value);
+                        markReviewDirty();
+                      }}
+                      className={fieldClass}
+                    />
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder={`Closing · ${formatCurrency(autoClosingValue, currency)}`}
+                      value={reviewClosingValue}
+                      onChange={(e) => {
+                        setReviewClosingValue(e.target.value);
+                        markReviewDirty();
+                      }}
+                      className={fieldClass}
+                    />
+                  </div>
+
+                  {isReviewDirty && (
+                    <button
+                      type="button"
+                      onClick={handleSaveReviewChanges}
+                      className="mt-4 w-full rounded-full bg-[var(--accent)] text-black h-[48px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation"
+                    >
+                      Save changes
+                    </button>
+                  )}
+                </div>
               )}
-
-              <div className="h-px bg-white/5 mb-6" />
-
-              <div className="mb-7">
-                <label className="text-white text-sm font-medium mb-3 block">
-                  Monthly notes
-                </label>
-                <textarea
-                  value={reviewNotes}
-                  onChange={(e) => {
-                    setReviewNotes(e.target.value);
-                    markReviewDirty();
-                  }}
-                  rows={3}
-                  className="w-full bg-zinc-900/35 border border-white/5 rounded-[22px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
-                  placeholder="Add strategy notes or context for this month."
-                />
-
-                {isReviewDirty && !isManualCorrectionsOpen && (
-                  <button
-                    type="button"
-                    onClick={handleSaveReviewChanges}
-                    className="mt-4 w-full rounded-full bg-[var(--accent)] text-black h-[48px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation"
-                  >
-                    Save changes
-                  </button>
-                )}
-              </div>
 
               {reviewHistory.length > 0 && (
                 <>
@@ -1637,75 +1515,196 @@ export default function Portfolio() {
               <div className="mb-7">
                 <button
                   type="button"
-                  onClick={() => setIsManualCorrectionsOpen((prev) => !prev)}
+                  onClick={() =>
+                    setIsPerformanceHighlightsOpen((prev) => !prev)
+                  }
                   className="w-full flex items-center justify-between text-left"
                 >
                   <div>
                     <p className="text-white text-sm font-medium">
-                      Manual Corrections
+                      Performance Highlights
                     </p>
                     <p className="text-zinc-600 text-xs mt-1">
-                      Adjust values if needed
+                      Top 3 best and worst performers
                     </p>
                   </div>
                   <span className="text-zinc-500 text-lg">
-                    {isManualCorrectionsOpen ? "⌃" : "⌄"}
+                    {isPerformanceHighlightsOpen ? "⌃" : "⌄"}
                   </span>
                 </button>
 
-                {isManualCorrectionsOpen && (
-                  <div className="mt-4 rounded-[26px] bg-zinc-900/25 border border-white/5 p-5">
-                    <div className="grid gap-3">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={`Opening · ${formatCurrency(autoOpeningValue, currency)}`}
-                        value={reviewOpeningValue}
-                        onChange={(e) => {
-                          setReviewOpeningValue(e.target.value);
-                          markReviewDirty();
-                        }}
-                        className={fieldClass}
-                      />
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={`Contributions · ${formatCurrency(periodInvested, currency)}`}
-                        value={reviewContributionsValue}
-                        onChange={(e) => {
-                          setReviewContributionsValue(e.target.value);
-                          markReviewDirty();
-                        }}
-                        className={fieldClass}
-                      />
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={`Closing · ${formatCurrency(autoClosingValue, currency)}`}
-                        value={reviewClosingValue}
-                        onChange={(e) => {
-                          setReviewClosingValue(e.target.value);
-                          markReviewDirty();
-                        }}
-                        className={fieldClass}
-                      />
+                {isPerformanceHighlightsOpen && (
+                  <div className="grid gap-6 mt-4">
+                    <div>
+                      <p className="text-zinc-400 text-xs mb-3">
+                        Best performers
+                      </p>
+                      {bestPerformers.length === 0 ? (
+                        <p className="text-zinc-600 text-sm">
+                          No performance data yet.
+                        </p>
+                      ) : (
+                        <div className="grid gap-3 text-sm">
+                          {bestPerformers.map((holding) => (
+                            <div
+                              key={holding.key}
+                              className="flex items-center justify-between gap-4"
+                            >
+                              <p className="text-zinc-300 truncate">
+                                {holding.ticker || holding.name}
+                              </p>
+                              <span className="text-green-500 font-medium shrink-0">
+                                {formatSignedPercent(holding.profitPct)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {isReviewDirty && (
-                      <button
-                        type="button"
-                        onClick={handleSaveReviewChanges}
-                        className="mt-4 w-full rounded-full bg-[var(--accent)] text-black h-[48px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation"
-                      >
-                        Save changes
-                      </button>
+                    <div>
+                      <p className="text-zinc-400 text-xs mb-3">
+                        Worst performers
+                      </p>
+                      {worstPerformers.length === 0 ? (
+                        <p className="text-zinc-600 text-sm">
+                          No performance data yet.
+                        </p>
+                      ) : (
+                        <div className="grid gap-3 text-sm">
+                          {worstPerformers.map((holding) => (
+                            <div
+                              key={holding.key}
+                              className="flex items-center justify-between gap-4"
+                            >
+                              <p className="text-zinc-300 truncate">
+                                {holding.ticker || holding.name}
+                              </p>
+                              <span className="text-red-500 font-medium shrink-0">
+                                {formatSignedPercent(holding.profitPct)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {(contributionGroups.newPositions.length > 0 ||
+                contributionGroups.addedThisMonth.length > 0) && (
+                <>
+                  <div className="h-px bg-white/5 mb-6" />
+
+                  <div className="mb-7">
+                    <button
+                      type="button"
+                      onClick={() => setIsNewPositionsOpen((prev) => !prev)}
+                      className="w-full flex items-center justify-between text-left"
+                    >
+                      <div>
+                        <p className="text-white text-sm font-medium">
+                          New Positions
+                        </p>
+                        <p className="text-zinc-600 text-xs mt-1">
+                          {contributionGroups.newPositions.length} new position
+                          {contributionGroups.newPositions.length === 1
+                            ? ""
+                            : "s"}
+                          {contributionGroups.addedThisMonth.length > 0
+                            ? ` · ${contributionGroups.addedThisMonth.length} added`
+                            : ""}
+                        </p>
+                      </div>
+                      <span className="text-zinc-500 text-lg">
+                        {isNewPositionsOpen ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+
+                    {isNewPositionsOpen && (
+                      <div className="grid gap-5 mt-4">
+                        {contributionGroups.newPositions.length > 0 && (
+                          <div className="grid gap-3 text-sm">
+                            {contributionGroups.newPositions.map((item) => (
+                              <div
+                                key={item.key}
+                                className="flex items-center justify-between gap-4"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-zinc-300 truncate">
+                                    {item.ticker || item.name}
+                                  </p>
+                                  <p className="text-zinc-600 text-xs mt-1">
+                                    {formatAssetType(item.type)}
+                                  </p>
+                                </div>
+                                <span className="text-white font-medium shrink-0">
+                                  +{formatCurrency(item.amount, currency)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {contributionGroups.addedThisMonth.length > 0 && (
+                          <div>
+                            <p className="text-zinc-500 text-xs mb-3">
+                              Added This Month
+                            </p>
+                            <div className="grid gap-3 text-sm">
+                              {contributionGroups.addedThisMonth.map((item) => (
+                                <div
+                                  key={item.key}
+                                  className="flex items-center justify-between gap-4"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-zinc-300 truncate">
+                                      {item.ticker || item.name}
+                                    </p>
+                                    <p className="text-zinc-600 text-xs mt-1">
+                                      {formatAssetType(item.type)}
+                                    </p>
+                                  </div>
+                                  <span className="text-white font-medium shrink-0">
+                                    +{formatCurrency(item.amount, currency)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
+                </>
+              )}
+
+              <div className="h-px bg-white/5 mb-6" />
+
+              <div className="mb-7">
+                <label className="text-white text-sm font-medium mb-3 block">
+                  Monthly Notes
+                </label>
+                <textarea
+                  value={reviewNotes}
+                  onChange={(e) => {
+                    setReviewNotes(e.target.value);
+                    markReviewDirty();
+                  }}
+                  rows={3}
+                  className="w-full bg-zinc-900/35 border border-white/5 rounded-[22px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
+                  placeholder="Add strategy notes or context for this month."
+                />
+
+                {isReviewDirty && !isManualCorrectionsOpen && (
+                  <button
+                    type="button"
+                    onClick={handleSaveReviewChanges}
+                    className="mt-4 w-full rounded-full bg-[var(--accent)] text-black h-[48px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation"
+                  >
+                    Save changes
+                  </button>
                 )}
               </div>
             </section>
