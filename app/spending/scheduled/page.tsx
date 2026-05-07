@@ -10,6 +10,7 @@ import {
   Repeat,
 } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
+import { useLanguage } from "@/context/language-context"
 import {
   formatPeriodLabel,
   getAvailablePeriodsFromCurrentYear,
@@ -64,29 +65,29 @@ function isInstallmentTemplate(
   return template.automation.kind === "installment"
 }
 
-const incomeCategories: { value: EntryCategory; label: string }[] = [
-  { value: "salary", label: "Salary" },
-  { value: "freelance", label: "Freelance" },
-  { value: "bonus", label: "Bonus" },
-  { value: "investment_income", label: "Investment Income" },
-  { value: "refund", label: "Refund" },
-  { value: "other", label: "Other" },
+const incomeCategories: EntryCategory[] = [
+  "salary",
+  "freelance",
+  "bonus",
+  "investment_income",
+  "refund",
+  "other",
 ]
 
-const expenseCategories: { value: EntryCategory; label: string }[] = [
-  { value: "food", label: "Food" },
-  { value: "bills", label: "Bills" },
-  { value: "transport", label: "Transport" },
-  { value: "subscription", label: "Subscription" },
-  { value: "shopping", label: "Shopping" },
-  { value: "health", label: "Health" },
-  { value: "entertainment", label: "Entertainment" },
-  { value: "travel", label: "Travel" },
-  { value: "education", label: "Education" },
-  { value: "payments", label: "Payments" },
-  { value: "investments", label: "Investments" },
-  { value: "housing", label: "Housing" },
-  { value: "other", label: "Other" },
+const expenseCategories: EntryCategory[] = [
+  "food",
+  "bills",
+  "transport",
+  "subscription",
+  "shopping",
+  "health",
+  "entertainment",
+  "travel",
+  "education",
+  "payments",
+  "investments",
+  "housing",
+  "other",
 ]
 
 function formatCurrency(value: number, currency = "USD") {
@@ -109,12 +110,6 @@ function formatDate(date: string) {
   }).format(new Date(year, month - 1, day))
 }
 
-function formatCategory(category: string) {
-  return category
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
 function getTodayDate() {
   const now = new Date()
   const year = now.getFullYear()
@@ -130,6 +125,7 @@ function isDue(date: string) {
 
 export default function ScheduledPaymentsPage() {
   const { currency } = useCurrency()
+  const { copy } = useLanguage()
 
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
   const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
@@ -451,14 +447,14 @@ export default function ScheduledPaymentsPage() {
                   className="inline-flex items-center gap-2 text-zinc-500 text-sm mb-4 active:scale-[0.98]"
                 >
                   <ArrowLeft size={16} strokeWidth={2} />
-                  Spending
+                  {copy.spending.title}
                 </Link>
 
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  Scheduled
+                  {copy.scheduled.title}
                 </h1>
                 <p className="text-zinc-500 mt-2">
-                  Manage recurring and installment payments.
+                  {copy.scheduled.subtitle}
                 </p>
               </div>
 
@@ -509,11 +505,12 @@ export default function ScheduledPaymentsPage() {
                         : "text-zinc-500"
                     }
                   />
-                  <p className="text-white text-sm font-medium">Recurring</p>
+                  <p className="text-white text-sm font-medium">
+                    {copy.scheduled.recurring}
+                  </p>
                 </div>
                 <p className="text-zinc-600 text-xs mt-2">
-                  {recurringTemplates.length} item
-                  {recurringTemplates.length === 1 ? "" : "s"}
+                  {recurringTemplates.length} {copy.scheduled.items}
                 </p>
               </button>
 
@@ -536,11 +533,12 @@ export default function ScheduledPaymentsPage() {
                         : "text-zinc-500"
                     }
                   />
-                  <p className="text-white text-sm font-medium">Installments</p>
+                  <p className="text-white text-sm font-medium">
+                    {copy.scheduled.installments}
+                  </p>
                 </div>
                 <p className="text-zinc-600 text-xs mt-2">
-                  {installmentTemplates.length} item
-                  {installmentTemplates.length === 1 ? "" : "s"}
+                  {installmentTemplates.length} {copy.scheduled.items}
                 </p>
               </button>
             </div>
@@ -549,11 +547,14 @@ export default function ScheduledPaymentsPage() {
           <section className="mb-8">
             <div className="flex items-end justify-between gap-4 mb-3">
               <div>
-                <p className="text-white text-sm font-medium">Upcoming</p>
+                <p className="text-white text-sm font-medium">
+                  {copy.scheduled.upcoming}
+                </p>
                 <p className="text-zinc-600 text-xs mt-1">
-                  {selectedTemplateCount} total{" "}
-                  {selectedKind === "recurring" ? "recurring item" : "installment plan"}
-                  {selectedTemplateCount === 1 ? "" : "s"}
+                  {selectedTemplateCount}{" "}
+                  {selectedKind === "recurring"
+                    ? copy.scheduled.totalRecurringItems
+                    : copy.scheduled.totalInstallmentPlans}
                 </p>
               </div>
             </div>
@@ -561,10 +562,10 @@ export default function ScheduledPaymentsPage() {
             {upcomingEntries.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
                 <p className="text-zinc-300 text-sm">
-                  No upcoming {selectedKind === "recurring" ? "recurring" : "installment"} payments.
+                  {copy.scheduled.noUpcoming}
                 </p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Items will appear here when scheduled for this period.
+                  {copy.emptyStates.noScheduledPayments}
                 </p>
               </div>
             ) : (
@@ -600,7 +601,7 @@ export default function ScheduledPaymentsPage() {
 
                         <p className="text-xs text-zinc-600 mt-1">
                           {formatDate(entry.date)} ·{" "}
-                          {formatCategory(entry.category)}
+                          {copy.categoriesNames[entry.category]}
                           {entry.automationLabel
                             ? ` · ${entry.automationLabel}`
                             : ""}
@@ -625,11 +626,11 @@ export default function ScheduledPaymentsPage() {
                             onClick={() => markScheduledAsPaid(entry)}
                             className="mt-2 text-[11px] text-[var(--accent)]"
                           >
-                            Mark paid
+                            {copy.scheduled.markPaid}
                           </button>
                         ) : (
                           <p className="mt-2 text-[11px] text-zinc-600">
-                            Auto-paid
+                            {copy.scheduled.autoPaid}
                           </p>
                         )}
                       </div>
@@ -643,11 +644,13 @@ export default function ScheduledPaymentsPage() {
           <div className="h-px bg-white/5 mb-8" />
 
           <section className="mb-24">
-            <p className="text-white text-sm font-medium mb-3">Paid</p>
+            <p className="text-white text-sm font-medium mb-3">
+              {copy.scheduled.paid}
+            </p>
 
             {paidEntries.length === 0 ? (
               <p className="text-zinc-600 text-sm">
-                No paid {selectedKind === "recurring" ? "recurring" : "installment"} payments in this period.
+                {copy.scheduled.noPaid}
               </p>
             ) : (
               <div className="rounded-[26px] bg-zinc-900/25 border border-white/5 overflow-hidden">
@@ -678,7 +681,7 @@ export default function ScheduledPaymentsPage() {
 
                       <p className="text-xs text-zinc-600 mt-1">
                         {formatDate(entry.date)} ·{" "}
-                        {formatCategory(entry.category)}
+                        {copy.categoriesNames[entry.category]}
                       </p>
                     </button>
 
@@ -700,7 +703,7 @@ export default function ScheduledPaymentsPage() {
                           onClick={() => unmarkScheduledAsPaid(entry)}
                           className="mt-2 text-[11px] text-zinc-600"
                         >
-                          Undo
+                          {copy.scheduled.undo}
                         </button>
                       )}
                     </div>
@@ -724,7 +727,7 @@ export default function ScheduledPaymentsPage() {
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
-                  Edit scheduled item
+                  {copy.scheduled.editScheduledItem}
                 </p>
 
                 <button
@@ -732,7 +735,7 @@ export default function ScheduledPaymentsPage() {
                   onClick={closeEdit}
                   className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
                 >
-                  Close
+                  {copy.actions.close}
                 </button>
               </div>
 
@@ -747,7 +750,7 @@ export default function ScheduledPaymentsPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Expense
+                    {copy.forms.expense}
                   </button>
 
                   <button
@@ -759,12 +762,12 @@ export default function ScheduledPaymentsPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Income
+                    {copy.forms.income}
                   </button>
                 </div>
 
                 <input
-                  placeholder="Description"
+                  placeholder={copy.forms.description}
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   className={fieldClass}
@@ -772,7 +775,7 @@ export default function ScheduledPaymentsPage() {
 
                 <div>
                   <label className="text-xs text-zinc-500 mb-2 block">
-                    Category
+                    {copy.forms.category}
                   </label>
                   <select
                     value={category}
@@ -782,8 +785,8 @@ export default function ScheduledPaymentsPage() {
                     className={fieldClass}
                   >
                     {currentCategories.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
+                      <option key={item} value={item}>
+                        {copy.categoriesNames[item]}
                       </option>
                     ))}
                   </select>
@@ -799,7 +802,7 @@ export default function ScheduledPaymentsPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Manual
+                    {copy.scheduled.manual}
                   </button>
 
                   <button
@@ -811,14 +814,14 @@ export default function ScheduledPaymentsPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Auto-paid
+                    {copy.scheduled.autoPaid}
                   </button>
                 </div>
 
                 {editingKind === "recurring" && (
                   <>
                     <input
-                      placeholder="Amount"
+                      placeholder={copy.forms.amount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -829,7 +832,7 @@ export default function ScheduledPaymentsPage() {
 
                     <div>
                       <label className="text-xs text-zinc-500 mb-2 block">
-                        Frequency
+                        {copy.forms.frequency}
                       </label>
                       <select
                         value={recurringFrequency}
@@ -840,8 +843,8 @@ export default function ScheduledPaymentsPage() {
                         }
                         className={fieldClass}
                       >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
+                        <option value="monthly">{copy.forms.monthly}</option>
+                        <option value="weekly">{copy.forms.weekly}</option>
                       </select>
                     </div>
                   </>
@@ -850,7 +853,7 @@ export default function ScheduledPaymentsPage() {
                 {editingKind === "installment" && (
                   <>
                     <input
-                      placeholder="Total amount"
+                      placeholder={copy.forms.totalAmount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -862,7 +865,7 @@ export default function ScheduledPaymentsPage() {
                     />
 
                     <input
-                      placeholder="Number of payments"
+                      placeholder={copy.forms.numberOfPayments}
                       type="number"
                       min="2"
                       step="1"
@@ -875,7 +878,7 @@ export default function ScheduledPaymentsPage() {
 
                     <div>
                       <label className="text-xs text-zinc-500 mb-2 block">
-                        Frequency
+                        {copy.forms.frequency}
                       </label>
                       <select
                         value={installmentFrequency}
@@ -889,9 +892,9 @@ export default function ScheduledPaymentsPage() {
                         }
                         className={fieldClass}
                       >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly">{copy.forms.monthly}</option>
+                        <option value="weekly">{copy.forms.weekly}</option>
+                        <option value="biweekly">{copy.forms.biweekly}</option>
                       </select>
                     </div>
                   </>
@@ -911,7 +914,7 @@ export default function ScheduledPaymentsPage() {
                   onClick={handleSaveTemplate}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
-                  Save scheduled item
+                  {copy.scheduled.saveScheduledItem}
                 </button>
 
                 <button
@@ -919,7 +922,7 @@ export default function ScheduledPaymentsPage() {
                   onClick={handleDeleteTemplate}
                   className="w-full text-center text-red-400 text-xs py-1 mt-2 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
                 >
-                  Delete scheduled item
+                  {copy.scheduled.deleteScheduledItem}
                 </button>
               </div>
             </div>

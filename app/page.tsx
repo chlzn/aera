@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowUpRight, CircleDollarSign, Layers, Wallet } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
+import { useLanguage } from "@/context/language-context"
 import { getCurrentPeriodKey } from "@/lib/period"
 import {
   type AutomationTemplate,
@@ -128,54 +129,9 @@ function getHoldingKey(name: string, ticker?: string) {
   return name.trim().toLowerCase().replace(/\s+/g, "-")
 }
 
-function getInsight({
-  income,
-  expenses,
-  monthlyResult,
-  portfolioValue,
-  portfolioProfit,
-  cashBalance,
-}: {
-  income: number
-  expenses: number
-  monthlyResult: number
-  portfolioValue: number
-  portfolioProfit: number
-  cashBalance: number
-}) {
-  if (income <= 0 && expenses <= 0 && portfolioValue <= 0 && cashBalance <= 0) {
-    return "Start tracking your money to see your financial picture clearly."
-  }
-
-  if (monthlyResult > 0 && portfolioProfit > 0) {
-    return "Positive month overall — your cash flow and portfolio are both moving well."
-  }
-
-  if (monthlyResult > 0) {
-    return "You’re saving part of your income this month."
-  }
-
-  if (income > 0 && expenses / income < 0.8) {
-    return "Your spending is under control."
-  }
-
-  if (income > 0 && expenses > income) {
-    return "High spending detected this month."
-  }
-
-  if (portfolioProfit > 0) {
-    return "Your portfolio is above your invested capital."
-  }
-
-  if (cashBalance > 0) {
-    return "You still have cash available from previous months."
-  }
-
-  return "Your financial picture is stable, but worth watching closely."
-}
-
 export default function Home() {
   const { currency } = useCurrency()
+  const { copy } = useLanguage()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
@@ -429,27 +385,71 @@ export default function Home() {
   const portfolioPct =
     netWorth > 0 ? Math.max(0, Math.min(100, (portfolio / netWorth) * 100)) : 0
 
-  const insight = getInsight({
-    income: monthlyIncome,
-    expenses: monthlyExpenses,
+  const insight = useMemo(() => {
+    if (
+      monthlyIncome <= 0 &&
+      monthlyExpenses <= 0 &&
+      portfolio <= 0 &&
+      cashBalance <= 0
+    ) {
+      return copy.home.status.startTracking
+    }
+
+    if (monthlyResult > 0 && portfolioProfit > 0) {
+      return copy.home.status.positiveOverall
+    }
+
+    if (monthlyResult > 0) {
+      return copy.home.status.savingIncome
+    }
+
+    if (monthlyIncome > 0 && monthlyExpenses / monthlyIncome < 0.8) {
+      return copy.home.status.spendingControlled
+    }
+
+    if (monthlyIncome > 0 && monthlyExpenses > monthlyIncome) {
+      return copy.home.status.highSpendingMessage
+    }
+
+    if (portfolioProfit > 0) {
+      return copy.home.status.portfolioAboveCapital
+    }
+
+    if (cashBalance > 0) {
+      return copy.home.status.cashFromPreviousMonths
+    }
+
+    return copy.home.status.stable
+  }, [
+    copy,
+    monthlyIncome,
+    monthlyExpenses,
     monthlyResult,
-    portfolioValue: portfolio,
+    portfolio,
     portfolioProfit,
     cashBalance,
-  })
+  ])
 
   const statusLabel = useMemo(() => {
-    if (monthlyResult > 0 && portfolioProfit > 0) return "Positive overall"
-    if (monthlyResult > 0) return "Positive month"
+    if (monthlyResult > 0 && portfolioProfit > 0) {
+      return copy.home.status.positiveOverall
+    }
+
+    if (monthlyResult > 0) return copy.home.status.positiveMonth
+
     if (monthlyIncome > 0 && monthlyExpenses / monthlyIncome < 0.8) {
-      return "Spending controlled"
+      return copy.home.status.spendingControlled
     }
+
     if (monthlyIncome > 0 && monthlyExpenses > monthlyIncome) {
-      return "High spending"
+      return copy.home.status.highSpending
     }
-    if (portfolio > cashBalance) return "Asset heavy"
-    return "Tracking"
+
+    if (portfolio > cashBalance) return copy.home.status.assetHeavy
+
+    return copy.home.status.tracking
   }, [
+    copy,
     monthlyResult,
     portfolioProfit,
     monthlyIncome,
@@ -465,14 +465,12 @@ export default function Home() {
           <h1 className="text-4xl font-semibold tracking-tight">
             Aera<span className="text-[var(--accent)]">.</span>
           </h1>
-          <p className="text-zinc-500 mt-2">
-            Your financial life, clearly understood.
-          </p>
+          <p className="text-zinc-500 mt-2">{copy.home.subtitle}</p>
         </header>
 
         <section className="mb-8">
           <div className="flex items-start justify-between gap-4 mb-3">
-            <p className="text-zinc-500 text-sm">Net Worth</p>
+            <p className="text-zinc-500 text-sm">{copy.home.netWorth}</p>
 
             <span className="rounded-full border border-[var(--accent)]/20 bg-[var(--accent)]/[0.08] px-3 py-1 text-xs text-[var(--accent)]">
               {statusLabel}
@@ -491,7 +489,7 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Wallet size={15} strokeWidth={2} className="text-zinc-600" />
-                <p className="text-zinc-500 text-xs">Cash</p>
+                <p className="text-zinc-500 text-xs">{copy.home.cash}</p>
               </div>
               <p className="text-white text-sm font-medium">
                 {formatCurrency(cashBalance, currency)}
@@ -501,7 +499,7 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Layers size={15} strokeWidth={2} className="text-zinc-600" />
-                <p className="text-zinc-500 text-xs">Portfolio</p>
+                <p className="text-zinc-500 text-xs">{copy.home.portfolio}</p>
               </div>
               <p className="text-white text-sm font-medium">
                 {formatCurrency(portfolio, currency)}
@@ -515,7 +513,7 @@ export default function Home() {
                   strokeWidth={2}
                   className="text-zinc-600"
                 />
-                <p className="text-zinc-500 text-xs">Monthly</p>
+                <p className="text-zinc-500 text-xs">{copy.home.monthly}</p>
               </div>
               <p
                 className={`text-sm font-medium ${
@@ -539,14 +537,18 @@ export default function Home() {
 
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-white text-sm font-medium">Composition</p>
-            <p className="text-zinc-600 text-xs">Cash vs Portfolio</p>
+            <p className="text-white text-sm font-medium">
+              {copy.home.composition}
+            </p>
+            <p className="text-zinc-600 text-xs">
+              {copy.home.cashVsPortfolio}
+            </p>
           </div>
 
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-zinc-400">Cash</span>
+                <span className="text-zinc-400">{copy.home.cash}</span>
                 <span className="text-zinc-500">
                   {netWorth > 0 ? `${cashPct.toFixed(0)}%` : "0%"}
                 </span>
@@ -561,7 +563,7 @@ export default function Home() {
 
             <div>
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-zinc-400">Portfolio</span>
+                <span className="text-zinc-400">{copy.home.portfolio}</span>
                 <span className="text-zinc-500">
                   {netWorth > 0 ? `${portfolioPct.toFixed(0)}%` : "0%"}
                 </span>
@@ -584,7 +586,9 @@ export default function Home() {
         >
           <section>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-white text-sm font-medium">This month</p>
+              <p className="text-white text-sm font-medium">
+                {copy.home.thisMonth}
+              </p>
               <ArrowUpRight
                 size={16}
                 strokeWidth={2}
@@ -594,14 +598,14 @@ export default function Home() {
 
             <div className="grid gap-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500">Income</span>
+                <span className="text-zinc-500">{copy.home.income}</span>
                 <span className="text-white font-medium">
                   {formatCurrency(monthlyIncome, currency)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500">Expenses</span>
+                <span className="text-zinc-500">{copy.home.expenses}</span>
                 <span className="text-white font-medium">
                   {formatCurrency(monthlyExpenses, currency)}
                 </span>
@@ -610,7 +614,7 @@ export default function Home() {
               <div className="h-px bg-white/5 my-1" />
 
               <div className="flex items-center justify-between">
-                <span className="text-zinc-300">Result</span>
+                <span className="text-zinc-300">{copy.home.result}</span>
                 <span
                   className={`font-medium ${
                     monthlyResult >= 0 ? "text-green-500" : "text-red-500"

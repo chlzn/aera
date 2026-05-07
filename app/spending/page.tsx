@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
+import { useLanguage } from "@/context/language-context"
 import {
   formatPeriodLabel,
   getAvailablePeriodsFromCurrentYear,
@@ -199,8 +200,16 @@ function isDue(date: string) {
   return date <= getTodayDate()
 }
 
+function getCategoryLabel(
+  category: EntryCategory,
+  copy: { categoriesNames: Partial<Record<string, string>> }
+) {
+  return copy.categoriesNames[category] ?? formatCategory(category)
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
+  const { copy } = useLanguage()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
@@ -452,37 +461,37 @@ export default function Spending() {
 
   const spendingInsight = useMemo(() => {
     if (periodEntries.length === 0 && generatedPeriodEntries.length > 0) {
-      return "You have scheduled payments, but nothing confirmed yet this month."
+      return copy.spending.status.scheduledOnly
     }
 
     if (periodEntries.length === 0) {
-      return "No data yet — start tracking to understand your monthly flow."
+      return copy.spending.status.noData
     }
 
     if (income <= 0 && expenses > 0) {
-      return "You’re tracking spending, but no income has been added yet."
+      return copy.spending.status.noIncome
     }
 
     if (income <= 0 && expenses <= 0) {
-      return "No activity yet — add your first transaction to get started."
+      return copy.spending.status.noActivity
     }
 
     const spendingRatio = (expenses / income) * 100
 
     if (spendingRatio < 50) {
-      return "You’re saving most of your income."
+      return copy.spending.status.savingMostIncome
     }
 
     if (spendingRatio < 80) {
-      return "Your spending is under control."
+      return copy.spending.status.spendingControlled
     }
 
     if (spendingRatio <= 100) {
-      return "You’re spending most of your income."
+      return copy.spending.status.spendingMostIncome
     }
 
-    return "You’re spending more than you earn this month."
-  }, [periodEntries.length, generatedPeriodEntries.length, income, expenses])
+    return copy.spending.status.spendingMoreThanEarn
+  }, [copy, periodEntries.length, generatedPeriodEntries.length, income, expenses])
 
   const installmentPreview = useMemo(() => {
     const parsedTotal = Number(installmentTotalAmount)
@@ -769,10 +778,10 @@ export default function Spending() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  Spending
+                  {copy.spending.title}
                 </h1>
                 <p className="text-zinc-500 mt-2">
-                  Track your cash flow clearly.
+                  {copy.spending.subtitle}
                 </p>
               </div>
             </div>
@@ -799,7 +808,7 @@ export default function Spending() {
           </div>
 
           <section className="mb-6">
-            <p className="text-zinc-500 text-sm mb-3">Cash</p>
+            <p className="text-zinc-500 text-sm mb-3">{copy.spending.cash}</p>
 
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(cashBalance, currency)}
@@ -807,21 +816,21 @@ export default function Spending() {
 
             <div className="mt-4 flex gap-7 flex-wrap text-sm">
               <div className="flex flex-col">
-                <span className="text-zinc-500">Income</span>
+                <span className="text-zinc-500">{copy.spending.income}</span>
                 <span className="text-white font-medium">
                   {formatCurrency(income, currency)}
                 </span>
               </div>
 
               <div className="flex flex-col">
-                <span className="text-zinc-500">Expenses</span>
+                <span className="text-zinc-500">{copy.spending.expenses}</span>
                 <span className="text-white font-medium">
                   {formatCurrency(expenses, currency)}
                 </span>
               </div>
 
               <div className="flex flex-col">
-                <span className="text-zinc-500">This month</span>
+                <span className="text-zinc-500">{copy.spending.thisMonth}</span>
                 <span
                   className={`font-medium ${
                     net >= 0 ? "text-green-500" : "text-red-500"
@@ -841,7 +850,7 @@ export default function Spending() {
               <Link
                 href="/spending/categories"
                 className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
-                aria-label="Categories"
+                aria-label={copy.spending.categories}
               >
                 <Tags
                   size={21}
@@ -849,14 +858,14 @@ export default function Spending() {
                   className="text-zinc-500 transition-colors duration-200 group-hover:text-[var(--accent)]"
                 />
                 <span className="text-xs text-zinc-500 transition-colors duration-200 group-hover:text-white">
-                  Categories
+                  {copy.spending.categories}
                 </span>
               </Link>
 
               <Link
                 href="/spending/scheduled"
                 className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
-                aria-label="Scheduled payments"
+                aria-label={copy.spending.scheduled}
               >
                 <Repeat
                   size={21}
@@ -864,7 +873,7 @@ export default function Spending() {
                   className="text-zinc-500 transition-colors duration-200 group-hover:text-[var(--accent)]"
                 />
                 <span className="text-xs text-zinc-500 transition-colors duration-200 group-hover:text-white">
-                  Scheduled
+                  {copy.spending.scheduled}
                 </span>
               </Link>
 
@@ -872,14 +881,14 @@ export default function Spending() {
                 type="button"
                 onClick={openCreateModal}
                 className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
-                aria-label="Add transaction"
+                aria-label={copy.spending.add}
               >
                 <Plus
                   size={22}
                   strokeWidth={2}
                   className="text-[var(--accent)] transition-colors duration-200"
                 />
-                <span className="text-xs text-white">Add</span>
+                <span className="text-xs text-white">{copy.spending.add}</span>
               </button>
             </div>
 
@@ -887,13 +896,13 @@ export default function Spending() {
           </section>
 
           <section className="mb-24">
-            <p className="text-white text-sm font-medium mb-3">Top categories</p>
+            <p className="text-white text-sm font-medium mb-3">{copy.spending.topCategories}</p>
 
             {topCategories.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
-                <p className="text-zinc-300 text-sm">No category activity yet.</p>
+                <p className="text-zinc-300 text-sm">{copy.emptyStates.noActivity}</p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Add transactions to start seeing your monthly patterns.
+                  {copy.emptyStates.startTracking}
                 </p>
               </div>
             ) : (
@@ -913,7 +922,7 @@ export default function Spending() {
                           className="text-zinc-500 shrink-0"
                         />
                         <span className="text-zinc-400 truncate">
-                          {formatCategory(group.category)}
+                          {getCategoryLabel(group.category, copy)}
                         </span>
                       </div>
 
@@ -930,7 +939,7 @@ export default function Spending() {
               href="/spending/categories"
               className="inline-flex mt-5 text-xs text-zinc-500 transition-colors duration-200 hover:text-[var(--accent)]"
             >
-              View all categories
+              {copy.spending.viewAllCategories}
             </Link>
           </section>
         </div>
@@ -949,8 +958,8 @@ export default function Spending() {
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
                   {editingEntryId || editingTemplateId
-                    ? "Edit transaction"
-                    : "New transaction"}
+                    ? `${copy.actions.edit} ${copy.categories.transaction}`
+                    : `${copy.actions.add} ${copy.categories.transaction}`}
                 </p>
 
                 <button
@@ -958,7 +967,7 @@ export default function Spending() {
                   onClick={closeModal}
                   className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
                 >
-                  Close
+                  {copy.actions.close}
                 </button>
               </div>
 
@@ -973,7 +982,7 @@ export default function Spending() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Expense
+                    {copy.forms.expense}
                   </button>
 
                   <button
@@ -985,12 +994,12 @@ export default function Spending() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Income
+                    {copy.forms.income}
                   </button>
                 </div>
 
                 <input
-                  placeholder="Description"
+                  placeholder={copy.forms.description}
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   className={fieldClass}
@@ -998,7 +1007,7 @@ export default function Spending() {
 
                 <div>
                   <label className="text-xs text-zinc-500 mb-2 block">
-                    Category
+                    {copy.forms.category}
                   </label>
                   <select
                     value={category}
@@ -1010,7 +1019,7 @@ export default function Spending() {
                     {(type === "income" ? incomeCategories : expenseCategories).map(
                       (item) => (
                         <option key={item.value} value={item.value}>
-                          {item.label}
+                          {getCategoryLabel(item.value, copy)}
                         </option>
                       )
                     )}
@@ -1027,7 +1036,7 @@ export default function Spending() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    One-time
+                    {copy.forms.oneTime}
                   </button>
 
                   <button
@@ -1039,7 +1048,7 @@ export default function Spending() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Installment
+                    {copy.forms.installment}
                   </button>
 
                   <button
@@ -1051,7 +1060,7 @@ export default function Spending() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Recurring
+                    {copy.forms.recurring}
                   </button>
                 </div>
 
@@ -1066,7 +1075,7 @@ export default function Spending() {
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
                       }`}
                     >
-                      Manual
+                      {copy.scheduled.manual}
                     </button>
 
                     <button
@@ -1078,7 +1087,7 @@ export default function Spending() {
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
                       }`}
                     >
-                      Auto-paid
+                      {copy.scheduled.autoPaid}
                     </button>
                   </div>
                 )}
@@ -1086,7 +1095,7 @@ export default function Spending() {
                 {automationMode === "one_time" && (
                   <div className="mt-2 space-y-3">
                     <input
-                      placeholder="Amount"
+                      placeholder={copy.forms.amount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1107,7 +1116,7 @@ export default function Spending() {
                 {automationMode === "recurring" && (
                   <div className="mt-2 space-y-3">
                     <input
-                      placeholder="Amount"
+                      placeholder={copy.forms.amount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1118,7 +1127,7 @@ export default function Spending() {
 
                     <div>
                       <label className="text-xs text-zinc-500 mb-2 block">
-                        Frequency
+                        {copy.forms.frequency}
                       </label>
                       <select
                         value={recurringFrequency}
@@ -1129,8 +1138,8 @@ export default function Spending() {
                         }
                         className={fieldClass}
                       >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
+                        <option value="monthly">{copy.forms.monthly}</option>
+                        <option value="weekly">{copy.forms.weekly}</option>
                       </select>
                     </div>
 
@@ -1154,7 +1163,7 @@ export default function Spending() {
                 {automationMode === "installment" && (
                   <div className="mt-2 space-y-3">
                     <input
-                      placeholder="Total amount"
+                      placeholder={copy.forms.totalAmount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1166,7 +1175,7 @@ export default function Spending() {
                     />
 
                     <input
-                      placeholder="Number of payments"
+                      placeholder={copy.forms.numberOfPayments}
                       type="number"
                       min="2"
                       step="1"
@@ -1177,7 +1186,7 @@ export default function Spending() {
 
                     <div>
                       <label className="text-xs text-zinc-500 mb-2 block">
-                        Frequency
+                        {copy.forms.frequency}
                       </label>
                       <select
                         value={installmentFrequency}
@@ -1191,9 +1200,9 @@ export default function Spending() {
                         }
                         className={fieldClass}
                       >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly">{copy.forms.monthly}</option>
+                        <option value="weekly">{copy.forms.weekly}</option>
+                        <option value="biweekly">{copy.forms.biweekly}</option>
                       </select>
                     </div>
 
@@ -1222,8 +1231,8 @@ export default function Spending() {
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
                   {editingEntryId || editingTemplateId
-                    ? "Save transaction"
-                    : "Add transaction"}
+                    ? copy.actions.saveChanges
+                    : `${copy.actions.add} ${copy.categories.transaction}`}
                 </button>
 
                 {(editingEntryId || editingTemplateId) && (
@@ -1232,7 +1241,7 @@ export default function Spending() {
                     onClick={handleDelete}
                     className="w-full text-center text-red-400 text-xs py-1 mt-2 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
                   >
-                    Delete
+                    {copy.actions.delete}
                   </button>
                 )}
               </div>

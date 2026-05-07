@@ -45,7 +45,8 @@ export const ptBR = {
         "Mês positivo — seu fluxo e portfolio estão evoluindo bem.",
       savingIncome: "Você está guardando parte do que ganhou este mês.",
       portfolioAboveCapital: "Seu portfolio está acima do capital investido.",
-      cashFromPreviousMonths: "Você ainda tem caixa disponível de meses anteriores.",
+      cashFromPreviousMonths:
+        "Você ainda tem caixa disponível de meses anteriores.",
       stable: "Sua vida financeira está estável, mas vale acompanhar de perto.",
       startTracking:
         "Comece a acompanhar seu dinheiro para enxergar sua vida financeira com clareza.",

@@ -1,9 +1,4 @@
 export const enUS = {
-  language: {
-    label: "Language",
-    english: "English",
-    portugueseBrazil: "Português (Brasil)",
-  },
   nav: {
     home: "Home",
     spending: "Spending",
@@ -11,6 +6,13 @@ export const enUS = {
     tools: "Tools",
     settings: "Settings",
   },
+
+  language: {
+    label: "Language",
+    english: "English",
+    portugueseBrazil: "Português (Brasil)",
+  },
+
   settings: {
     title: "Settings",
     currency: "Currency",
@@ -19,6 +21,7 @@ export const enUS = {
     sync: "Sync",
     premium: "Premium",
   },
+
   home: {
     title: "Aera.",
     subtitle: "Your financial life, clearly understood.",
@@ -32,21 +35,26 @@ export const enUS = {
     income: "Income",
     expenses: "Expenses",
     result: "Result",
-    highSpending: "High spending",
-    highSpendingDetected: "High spending detected this month.",
-    positiveMonth: "Positive month",
-    spendingUnderControl: "Your spending is under control.",
-    positiveOverall: "Positive overall",
-    spendingControlled: "Spending controlled",
-    assetHeavy: "Asset heavy",
-    tracking: "Tracking",
-    startTracking: "Start tracking your money to see your financial picture clearly.",
-    positiveMonthOverall: "Positive month overall — your cash flow and portfolio are both moving well.",
-    savingPartIncome: "You’re saving part of your income this month.",
-    portfolioAboveInvested: "Your portfolio is above your invested capital.",
-    cashFromPreviousMonths: "You still have cash available from previous months.",
-    stablePicture: "Your financial picture is stable, but worth watching closely.",
+
+    status: {
+      highSpending: "High spending",
+      highSpendingMessage: "High spending detected this month.",
+      positiveMonth: "Positive month",
+      spendingControlled: "Your spending is under control.",
+      positiveOverall:
+        "Positive month overall — your cash flow and portfolio are both moving well.",
+      savingIncome: "You’re saving part of your income this month.",
+      portfolioAboveCapital: "Your portfolio is above your invested capital.",
+      cashFromPreviousMonths:
+        "You still have cash available from previous months.",
+      stable: "Your financial picture is stable, but worth watching closely.",
+      startTracking:
+        "Start tracking your money to see your financial picture clearly.",
+      assetHeavy: "Asset heavy",
+      tracking: "Tracking",
+    },
   },
+
   spending: {
     title: "Spending",
     subtitle: "Track your cash flow clearly.",
@@ -54,21 +62,26 @@ export const enUS = {
     income: "Income",
     expenses: "Expenses",
     thisMonth: "This month",
-    spendingMoreThanEarn: "You’re spending more than you earn this month.",
-    spendingUnderControl: "Your spending is under control.",
     topCategories: "Top categories",
     viewAllCategories: "View all categories",
     categories: "Categories",
     scheduled: "Scheduled",
     add: "Add",
-    noDataYet: "No data yet — start tracking to understand your monthly flow.",
-    noIncomeYet: "You’re tracking spending, but no income has been added yet.",
-    noActivityYet: "No activity yet — add your first transaction to get started.",
-    savingMostIncome: "You’re saving most of your income.",
-    spendingMostIncome: "You’re spending most of your income.",
-    scheduledNoConfirmed: "You have scheduled payments, but nothing confirmed yet this month.",
+
+    status: {
+      spendingMoreThanEarn: "You’re spending more than you earn this month.",
+      spendingControlled: "Your spending is under control.",
+      savingMostIncome: "You’re saving most of your income.",
+      spendingMostIncome: "You’re spending most of your income.",
+      noData: "No data yet — start tracking to understand your monthly flow.",
+      noActivity: "No activity yet — add your first transaction to get started.",
+      noIncome: "You’re tracking spending, but no income has been added yet.",
+      scheduledOnly:
+        "You have scheduled payments, but nothing confirmed yet this month.",
+    },
   },
-  categoriesPage: {
+
+  categories: {
     title: "Categories",
     subtitle: "Manage your spending and income groups.",
     expenses: "Expenses",
@@ -77,9 +90,11 @@ export const enUS = {
     transactions: "transactions",
     entry: "entry",
     entries: "entries",
-    noActivityCategory: "No activity in this category yet.",
-    usedBefore: "This group stays here because you used it before.",
+    noActivity: "No activity in this category yet.",
+    persistentGroup: "This group stays here because you used it before.",
+    totalThisMonth: "Total this month",
   },
+
   scheduled: {
     title: "Scheduled",
     subtitle: "Manage recurring and installment payments.",
@@ -88,16 +103,19 @@ export const enUS = {
     upcoming: "Upcoming",
     paid: "Paid",
     autoPaid: "Auto-paid",
+    manual: "Manual",
     markPaid: "Mark paid",
+    undo: "Undo",
     items: "items",
     totalRecurringItems: "total recurring items",
     totalInstallmentPlans: "total installment plans",
+    noUpcoming: "No upcoming payments.",
+    noPaid: "No paid payments in this period.",
     editScheduledItem: "Edit scheduled item",
     saveScheduledItem: "Save scheduled item",
     deleteScheduledItem: "Delete scheduled item",
-    noUpcoming: "No upcoming payments.",
-    noPaid: "No paid payments in this period.",
   },
+
   portfolio: {
     title: "Portfolio",
     subtitle: "See your holdings and performance.",
@@ -106,16 +124,18 @@ export const enUS = {
     activity: "Activity",
     review: "Review",
     add: "Add",
+
     portfolioValue: "Portfolio Value",
     allocation: "Allocation",
     allocationSubtitle: "How your portfolio is distributed.",
     quickSummary: "Quick summary",
     invested: "Invested",
     topAllocation: "Top allocation",
-    totalHoldings: "Total Holdings",
-    noHoldingsYet: "No holdings yet.",
-    addInvestmentsStart: "Add investments to start building your portfolio.",
+
+    noHoldings: "No holdings yet.",
+    noHoldingsSubtitle: "Add investments to start building your portfolio.",
   },
+
   holdings: {
     crypto: "Crypto",
     stocks: "Stocks",
@@ -124,6 +144,7 @@ export const enUS = {
     fixedIncome: "Fixed Income",
     cash: "Cash",
     other: "Other",
+
     holding: "holding",
     holdings: "holdings",
     currentValue: "Current value",
@@ -133,7 +154,9 @@ export const enUS = {
     investMore: "Invest more",
     saveHolding: "Save holding",
     holdingDetail: "Holding detail",
+    addContribution: "Add contribution",
   },
+
   portfolioActivity: {
     investedIn: "Invested in",
     investmentEntries: "Investment entries",
@@ -146,37 +169,54 @@ export const enUS = {
     currentValueOptional: "Current value optional",
     notes: "Notes",
     optionalNotes: "Optional notes",
-    noInvestmentsPeriod: "No investments added in this period.",
+    noInvestments: "No investments added in this period.",
   },
+
   monthlyReview: {
     title: "Monthly Review",
     realReturn: "Real Return",
-    realProfitText: "real profit",
-    initialMonthHelper: "Initial month · return starts after the first full month.",
+    realProfitLower: "real profit",
+
+    initialMonth: "Initial month · return starts after the first full month.",
+
     reviewSummary: "Review Summary",
     openingValue: "Opening Value",
     contributions: "Contributions",
     closingValue: "Closing Value",
     realProfit: "Real Profit",
     editValues: "Edit values",
+
     annualReview: "Annual Review",
     monthsTracked: "months tracked",
+
+    performanceHighlights: "Performance Highlights",
+    performanceHighlightsSubtitle: "Top 3 best and worst performers",
+
     newPositions: "New Positions",
     newPositionsCreated: "new positions created",
     addedThisMonth: "Added This Month",
+
+    monthlyNotes: "Monthly notes",
+    monthlyNotesPlaceholder: "Add strategy notes or context for this month.",
+
+    manualCorrections: "Manual Corrections",
+    manualCorrectionsSubtitle: "Adjust values if needed",
     editMonthlyReview: "Edit monthly review",
-    adjustValues: "Adjust values if the automatic review needs correction.",
+    editMonthlyReviewSubtitle:
+      "Adjust values if the automatic review needs correction.",
   },
+
   tools: {
     title: "Tools",
     subtitle: "Smart utilities to plan your money better.",
     futureSimulator: "Future Simulator",
-    futureSimulatorDescription: "See how your money evolves over time.",
+    futureSimulatorSubtitle: "See how your money evolves over time.",
     futureBalance: "Future balance",
     adjustments: "Adjustments",
     addAdjustment: "Add adjustment",
     monthlyBreakdown: "Monthly breakdown",
   },
+
   futureSimulator: {
     futureBalance: "Future balance",
     subtitle: "See how your money evolves over time.",
@@ -184,12 +224,12 @@ export const enUS = {
     threeMonths: "3M",
     sixMonths: "6M",
     twelveMonths: "12M",
-    inMonths: "In {{count}} months",
+    inMonths: "In {months} months",
     onTrack: "You’re on track.",
     tightBalance: "Tight balance ahead.",
     watchSpending: "Watch your spending.",
     adjustments: "Adjustments",
-    adjustmentDescription: "Simulate one-time future changes.",
+    adjustmentsSubtitle: "Simulate one-time future changes.",
     addAdjustment: "Add adjustment",
     monthlyBreakdown: "Monthly breakdown",
     editAdjustment: "Edit adjustment",
@@ -198,26 +238,39 @@ export const enUS = {
     saveAdjustment: "Save adjustment",
     deleteAdjustment: "Delete adjustment",
   },
-  categoryNames: {
+
+  categoriesNames: {
     salary: "Salary",
     freelance: "Freelance",
     bonus: "Bonus",
     investment_income: "Investment Income",
     refund: "Refund",
-    housing: "Housing",
+
     food: "Food",
-    transport: "Transport",
     bills: "Bills",
+    transport: "Transport",
     subscription: "Subscription",
     shopping: "Shopping",
     health: "Health",
     entertainment: "Entertainment",
     travel: "Travel",
     education: "Education",
+    housing: "Housing",
     payments: "Payments",
     investments: "Investments",
     other: "Other",
   },
+
+  assetTypes: {
+    crypto: "Crypto",
+    stock: "Stock",
+    etf: "ETF",
+    real_estate: "Real Estate",
+    fixed_income: "Fixed Income",
+    cash: "Cash",
+    other: "Other",
+  },
+
   actions: {
     add: "Add",
     edit: "Edit",
@@ -234,13 +287,32 @@ export const enUS = {
     showLess: "Show less",
     saveChanges: "Save changes",
   },
-  empty: {
-    noActivityYet: "No activity yet.",
-    noTransactionsThisMonth: "No transactions this month.",
-    noAssetsYet: "No assets yet.",
-    noScheduledPaymentsYet: "No scheduled payments yet.",
-    startTrackingMoney: "Start tracking your money.",
-  },
-}
 
-export type Copy = typeof enUS
+  emptyStates: {
+    noActivity: "No activity yet.",
+    noTransactionsThisMonth: "No transactions this month.",
+    noAssets: "No assets yet.",
+    noScheduledPayments: "No scheduled payments yet.",
+    startTracking: "Start tracking your money.",
+  },
+
+  forms: {
+    description: "Description",
+    category: "Category",
+    amount: "Amount",
+    date: "Date",
+    type: "Type",
+    expense: "Expense",
+    income: "Income",
+    oneTime: "One-time",
+    installment: "Installment",
+    recurring: "Recurring",
+    frequency: "Frequency",
+    monthly: "Monthly",
+    weekly: "Weekly",
+    biweekly: "Every 2 weeks",
+    totalAmount: "Total amount",
+    numberOfPayments: "Number of payments",
+    startDate: "Start date",
+  },
+} as const

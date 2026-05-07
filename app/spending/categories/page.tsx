@@ -28,6 +28,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
+import { useLanguage } from "@/context/language-context"
 import {
   formatPeriodLabel,
   getAvailablePeriodsFromCurrentYear,
@@ -146,6 +147,20 @@ function formatCategory(category: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function getCategoryLabel(
+  category: EntryCategory,
+  categories: Record<string, string>
+) {
+  return categories[category] ?? formatCategory(category)
+}
+
+function getAutomationLabel(label: string | undefined, copy: any) {
+  if (!label) return ""
+  if (label === "Monthly") return copy.forms.monthly
+  if (label === "Weekly") return copy.forms.weekly
+  return label
+}
+
 function getTodayDate() {
   const now = new Date()
   const year = now.getFullYear()
@@ -167,16 +182,20 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
-function formatRecurringFrequencyLabel(frequency: "monthly" | "weekly") {
-  return frequency === "monthly" ? "every month" : "every week"
+function formatRecurringFrequencyLabel(
+  frequency: "monthly" | "weekly",
+  copy: any
+) {
+  return frequency === "monthly" ? copy.forms.monthly : copy.forms.weekly
 }
 
 function formatInstallmentFrequencyLabel(
-  frequency: "monthly" | "weekly" | "biweekly"
+  frequency: "monthly" | "weekly" | "biweekly",
+  copy: any
 ) {
-  if (frequency === "monthly") return "every month"
-  if (frequency === "weekly") return "every week"
-  return "every 2 weeks"
+  if (frequency === "monthly") return copy.forms.monthly
+  if (frequency === "weekly") return copy.forms.weekly
+  return copy.forms.biweekly
 }
 
 function isDue(date: string) {
@@ -209,6 +228,7 @@ function moveItem<T>(items: T[], from: T, to: T) {
 
 export default function SpendingCategoriesPage() {
   const { currency } = useCurrency()
+  const { copy } = useLanguage()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
@@ -559,7 +579,8 @@ export default function SpendingCategoriesPage() {
       perPayment,
       currency
     )} ${formatInstallmentFrequencyLabel(
-      installmentFrequency
+      installmentFrequency,
+      copy
     )} · ${parsedCount} payments`
   }, [
     automationMode,
@@ -567,6 +588,7 @@ export default function SpendingCategoriesPage() {
     installmentCount,
     installmentFrequency,
     currency,
+    copy,
   ])
 
   const recurringPreview = useMemo(() => {
@@ -585,8 +607,8 @@ export default function SpendingCategoriesPage() {
     return `${signal}${formatCurrency(
       parsedAmount,
       currency
-    )} ${formatRecurringFrequencyLabel(recurringFrequency)}`
-  }, [automationMode, amount, recurringFrequency, type, currency])
+    )} ${formatRecurringFrequencyLabel(recurringFrequency, copy)}`
+  }, [automationMode, amount, recurringFrequency, type, currency, copy])
 
   const resetForm = () => {
     setDescription("")
@@ -736,7 +758,7 @@ export default function SpendingCategoriesPage() {
     const now = new Date().toISOString()
 
     if (!description.trim()) {
-      setError("Please add a description.")
+      setError(`${copy.forms.description} is required.`)
       return
     }
 
@@ -744,12 +766,12 @@ export default function SpendingCategoriesPage() {
       const parsedAmount = Number(amount)
 
       if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError("Please enter a valid amount.")
+        setError(`${copy.forms.amount} is required.`)
         return
       }
 
       if (!date) {
-        setError("Please select a date.")
+        setError(`${copy.forms.date} is required.`)
         return
       }
 
@@ -799,12 +821,12 @@ export default function SpendingCategoriesPage() {
       const parsedAmount = Number(amount)
 
       if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError("Please enter a valid amount.")
+        setError(`${copy.forms.amount} is required.`)
         return
       }
 
       if (!automationStartDate) {
-        setError("Please select a start date.")
+        setError(`${copy.forms.startDate} is required.`)
         return
       }
 
@@ -857,17 +879,17 @@ export default function SpendingCategoriesPage() {
         Number.isNaN(parsedTotal) ||
         parsedTotal <= 0
       ) {
-        setError("Please enter a valid total amount.")
+        setError(`${copy.forms.totalAmount} is required.`)
         return
       }
 
       if (Number.isNaN(parsedCount) || parsedCount < 2) {
-        setError("Please enter a valid number of payments.")
+        setError(`${copy.forms.numberOfPayments} is required.`)
         return
       }
 
       if (!automationStartDate) {
-        setError("Please select a start date.")
+        setError(`${copy.forms.startDate} is required.`)
         return
       }
 
@@ -936,9 +958,15 @@ export default function SpendingCategoriesPage() {
     const sign = group.type === "income" ? "+" : "-"
     const countLabel =
       group.type === "income"
-        ? `${group.entries.length} entr${group.entries.length === 1 ? "y" : "ies"}`
-        : `${group.entries.length} transaction${
-            group.entries.length === 1 ? "" : "s"
+        ? `${group.entries.length} ${
+            group.entries.length === 1
+              ? copy.categories.entry
+              : copy.categories.entries
+          }`
+        : `${group.entries.length} ${
+            group.entries.length === 1
+              ? copy.categories.transaction
+              : copy.categories.transactions
           }`
 
     return (
@@ -971,7 +999,7 @@ export default function SpendingCategoriesPage() {
 
             <div className="min-w-0">
               <p className="text-zinc-200 font-medium">
-                {formatCategory(group.category)}
+                {getCategoryLabel(group.category, copy.categoriesNames)}
               </p>
 
               {!isExpanded && (
@@ -994,7 +1022,7 @@ export default function SpendingCategoriesPage() {
           <div className="px-5 pb-5">
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
-                <p className="text-zinc-500 text-xs">Total this month</p>
+                <p className="text-zinc-500 text-xs">{copy.categories.totalThisMonth}</p>
                 <p className={`text-lg font-medium mt-1 ${valueColor}`}>
                   {group.total > 0 ? sign : ""}
                   {formatCurrency(group.total, currency)}
@@ -1007,10 +1035,10 @@ export default function SpendingCategoriesPage() {
             {group.entries.length === 0 ? (
               <div className="rounded-[22px] bg-zinc-950/25 border border-white/5 p-4">
                 <p className="text-zinc-400 text-sm">
-                  No activity in this category yet.
+                  {copy.categories.noActivity}
                 </p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  This group stays here so your flow remains familiar.
+                  {copy.categories.persistentGroup}
                 </p>
               </div>
             ) : (
@@ -1028,7 +1056,7 @@ export default function SpendingCategoriesPage() {
                       </p>
                       <p className="text-xs text-zinc-600 mt-1">
                         {formatDate(entry.date)}
-                        {entry.automationLabel ? ` · ${entry.automationLabel}` : ""}
+                        {entry.automationLabel ? ` · ${getAutomationLabel(entry.automationLabel, copy)}` : ""}
                       </p>
                     </div>
 
@@ -1046,8 +1074,8 @@ export default function SpendingCategoriesPage() {
               onClick={() => openCreateModal(group.type, group.category)}
               className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
             >
-              + Add {formatCategory(group.category).toLowerCase()}{" "}
-              {group.type === "income" ? "income" : "expense"}
+              + {copy.actions.add} {getCategoryLabel(group.category, copy.categoriesNames).toLowerCase()}{" "}
+              {group.type === "income" ? copy.forms.income.toLowerCase() : copy.forms.expense.toLowerCase()}
             </button>
           </div>
         )}
@@ -1065,16 +1093,16 @@ export default function SpendingCategoriesPage() {
               className="inline-flex items-center gap-2 text-zinc-600 text-sm mb-5 transition-colors hover:text-zinc-400"
             >
               <ArrowLeft size={16} strokeWidth={2} />
-              Spending
+              {copy.nav.spending}
             </Link>
 
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  Categories
+                  {copy.categories.title}
                 </h1>
                 <p className="text-zinc-500 mt-2">
-                  Manage your spending and income groups.
+                  {copy.categories.subtitle}
                 </p>
               </div>
 
@@ -1084,7 +1112,7 @@ export default function SpendingCategoriesPage() {
                   openCreateModal(activeType, activeGroups[0]?.category || "food")
                 }
                 className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-black transition-all duration-200 ease-out active:scale-[0.96]"
-                aria-label="Add transaction"
+                aria-label={copy.spending.add}
               >
                 <Plus size={20} strokeWidth={2} />
               </button>
@@ -1124,7 +1152,7 @@ export default function SpendingCategoriesPage() {
                   : "bg-zinc-900/60 border-white/5 text-zinc-500"
               }`}
             >
-              Expenses
+              {copy.categories.expenses}
             </button>
 
             <button
@@ -1139,16 +1167,16 @@ export default function SpendingCategoriesPage() {
                   : "bg-zinc-900/60 border-white/5 text-zinc-500"
               }`}
             >
-              Income
+              {copy.categories.income}
             </button>
           </div>
 
           <section className="mb-24">
             {activeGroups.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
-                <p className="text-zinc-300 text-sm">No categories yet.</p>
+                <p className="text-zinc-300 text-sm">{copy.emptyStates.noActivity}</p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Add your first transaction to start building your flow.
+                  {copy.emptyStates.startTracking}
                 </p>
               </div>
             ) : (
@@ -1172,7 +1200,7 @@ export default function SpendingCategoriesPage() {
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
-                  Transaction detail
+                  {copy.categories.transaction}
                 </p>
 
                 <button
@@ -1180,7 +1208,7 @@ export default function SpendingCategoriesPage() {
                   onClick={closeTransactionDetail}
                   className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
                 >
-                  Close
+                  {copy.actions.close}
                 </button>
               </div>
 
@@ -1204,24 +1232,24 @@ export default function SpendingCategoriesPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
-                    <p className="text-zinc-500 text-xs mb-2">Category</p>
+                    <p className="text-zinc-500 text-xs mb-2">{copy.forms.category}</p>
                     <p className="text-white text-sm font-medium">
-                      {formatCategory(selectedTransaction.category)}
+                      {getCategoryLabel(selectedTransaction.category, copy.categoriesNames)}
                     </p>
                   </div>
 
                   <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
-                    <p className="text-zinc-500 text-xs mb-2">Type</p>
+                    <p className="text-zinc-500 text-xs mb-2">{copy.forms.type}</p>
                     <p className="text-white text-sm font-medium">
                       {selectedTransaction.type === "income"
-                        ? "Income"
-                        : "Expense"}
+                        ? copy.forms.income
+                        : copy.forms.expense}
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
-                  <p className="text-zinc-500 text-xs mb-2">Date</p>
+                  <p className="text-zinc-500 text-xs mb-2">{copy.forms.date}</p>
                   <p className="text-white text-sm font-medium">
                     {formatDate(selectedTransaction.date)}
                   </p>
@@ -1230,13 +1258,13 @@ export default function SpendingCategoriesPage() {
                 {(selectedTransaction.automationKind ||
                   selectedTransaction.automationLabel) && (
                   <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
-                    <p className="text-zinc-500 text-xs mb-2">Schedule</p>
+                    <p className="text-zinc-500 text-xs mb-2">{copy.scheduled.title}</p>
                     <p className="text-white text-sm font-medium">
                       {selectedTransaction.automationKind === "installment"
-                        ? "Installment"
-                        : "Recurring"}
+                        ? copy.forms.installment
+                        : copy.forms.recurring}
                       {selectedTransaction.automationLabel
-                        ? ` · ${selectedTransaction.automationLabel}`
+                        ? ` · ${getAutomationLabel(selectedTransaction.automationLabel, copy)}`
                         : ""}
                     </p>
                   </div>
@@ -1247,7 +1275,7 @@ export default function SpendingCategoriesPage() {
                   onClick={() => openEditModal(selectedTransaction)}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
                 >
-                  Edit transaction
+                  {copy.actions.edit} {copy.categories.transaction}
                 </button>
 
                 <button
@@ -1255,7 +1283,7 @@ export default function SpendingCategoriesPage() {
                   onClick={() => deleteDisplayEntry(selectedTransaction)}
                   className="w-full text-center text-red-400 text-xs py-1.5 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
                 >
-                  Delete transaction
+                  {copy.actions.delete} {copy.categories.transaction}
                 </button>
               </div>
             </div>
@@ -1276,8 +1304,8 @@ export default function SpendingCategoriesPage() {
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">
                   {editingEntryId || editingTemplateId
-                    ? "Edit transaction"
-                    : "New transaction"}
+                    ? `${copy.actions.edit} ${copy.categories.transaction}`
+                    : copy.spending.add}
                 </p>
 
                 <button
@@ -1285,7 +1313,7 @@ export default function SpendingCategoriesPage() {
                   onClick={closeModal}
                   className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
                 >
-                  Close
+                  {copy.actions.close}
                 </button>
               </div>
 
@@ -1300,7 +1328,7 @@ export default function SpendingCategoriesPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Expense
+                    {copy.forms.expense}
                   </button>
 
                   <button
@@ -1312,12 +1340,12 @@ export default function SpendingCategoriesPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Income
+                    {copy.forms.income}
                   </button>
                 </div>
 
                 <input
-                  placeholder="Description"
+                  placeholder={copy.forms.description}
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   className={fieldClass}
@@ -1325,7 +1353,7 @@ export default function SpendingCategoriesPage() {
 
                 <div>
                   <label className="text-xs text-zinc-500 mb-2 block">
-                    Category
+                    {copy.forms.category}
                   </label>
                   <select
                     value={category}
@@ -1336,7 +1364,7 @@ export default function SpendingCategoriesPage() {
                   >
                     {currentCategories.map((item) => (
                       <option key={item.value} value={item.value}>
-                        {item.label}
+                        {getCategoryLabel(item.value, copy.categoriesNames)}
                       </option>
                     ))}
                   </select>
@@ -1352,7 +1380,7 @@ export default function SpendingCategoriesPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    One-time
+                    {copy.forms.oneTime}
                   </button>
 
                   <button
@@ -1364,7 +1392,7 @@ export default function SpendingCategoriesPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Installment
+                    {copy.forms.installment}
                   </button>
 
                   <button
@@ -1376,7 +1404,7 @@ export default function SpendingCategoriesPage() {
                         : "bg-zinc-800/80 border-white/5 text-zinc-400"
                     }`}
                   >
-                    Recurring
+                    {copy.forms.recurring}
                   </button>
                 </div>
 
@@ -1391,7 +1419,7 @@ export default function SpendingCategoriesPage() {
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
                       }`}
                     >
-                      Manual
+                      {copy.scheduled.manual}
                     </button>
 
                     <button
@@ -1403,7 +1431,7 @@ export default function SpendingCategoriesPage() {
                           : "bg-zinc-800/80 border-white/5 text-zinc-400"
                       }`}
                     >
-                      Auto-paid
+                      {copy.scheduled.autoPaid}
                     </button>
                   </div>
                 )}
@@ -1411,7 +1439,7 @@ export default function SpendingCategoriesPage() {
                 {automationMode === "one_time" && (
                   <div className="mt-2 space-y-3">
                     <input
-                      placeholder="Amount"
+                      placeholder={copy.forms.amount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1432,7 +1460,7 @@ export default function SpendingCategoriesPage() {
                 {automationMode === "recurring" && (
                   <div className="mt-2 space-y-3">
                     <input
-                      placeholder="Amount"
+                      placeholder={copy.forms.amount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1443,7 +1471,7 @@ export default function SpendingCategoriesPage() {
 
                     <div>
                       <label className="text-xs text-zinc-500 mb-2 block">
-                        Frequency
+                        {copy.forms.frequency}
                       </label>
                       <select
                         value={recurringFrequency}
@@ -1454,8 +1482,8 @@ export default function SpendingCategoriesPage() {
                         }
                         className={fieldClass}
                       >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
+                        <option value="monthly">{copy.forms.monthly}</option>
+                        <option value="weekly">{copy.forms.weekly}</option>
                       </select>
                     </div>
 
@@ -1479,7 +1507,7 @@ export default function SpendingCategoriesPage() {
                 {automationMode === "installment" && (
                   <div className="mt-2 space-y-3">
                     <input
-                      placeholder="Total amount"
+                      placeholder={copy.forms.totalAmount}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1491,7 +1519,7 @@ export default function SpendingCategoriesPage() {
                     />
 
                     <input
-                      placeholder="Number of payments"
+                      placeholder={copy.forms.numberOfPayments}
                       type="number"
                       min="2"
                       step="1"
@@ -1502,7 +1530,7 @@ export default function SpendingCategoriesPage() {
 
                     <div>
                       <label className="text-xs text-zinc-500 mb-2 block">
-                        Frequency
+                        {copy.forms.frequency}
                       </label>
                       <select
                         value={installmentFrequency}
@@ -1516,9 +1544,9 @@ export default function SpendingCategoriesPage() {
                         }
                         className={fieldClass}
                       >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly">{copy.forms.monthly}</option>
+                        <option value="weekly">{copy.forms.weekly}</option>
+                        <option value="biweekly">{copy.forms.biweekly}</option>
                       </select>
                     </div>
 
@@ -1547,8 +1575,8 @@ export default function SpendingCategoriesPage() {
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
                   {editingEntryId || editingTemplateId
-                    ? "Save transaction"
-                    : "Add transaction"}
+                    ? copy.actions.save
+                    : copy.spending.add}
                 </button>
 
                 {(editingEntryId || editingTemplateId) && (
@@ -1557,7 +1585,7 @@ export default function SpendingCategoriesPage() {
                     onClick={handleDelete}
                     className="w-full text-center text-red-400 text-xs py-1 mt-2 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
                   >
-                    Delete
+                    {copy.actions.delete}
                   </button>
                 )}
               </div>
