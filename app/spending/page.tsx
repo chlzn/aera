@@ -447,31 +447,6 @@ export default function Spending() {
     return Object.values(totals)
       .filter((group) => group.category !== "other" && group.total > 0)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 3)
-  }, [periodEntries])
-
-  const activeCategoryPreview = useMemo<CategoryPreview[]>(() => {
-    const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
-
-    const totals = expenseEntries.reduce<Record<string, CategoryPreview>>(
-      (acc, entry) => {
-        if (!acc[entry.category]) {
-          acc[entry.category] = {
-            category: entry.category,
-            total: 0,
-            entries: [],
-          }
-        }
-
-        acc[entry.category].total += entry.amount
-        acc[entry.category].entries.push(entry)
-        return acc
-      },
-      {}
-    )
-
-    return Object.values(totals)
-      .sort((a, b) => b.total - a.total)
       .slice(0, 5)
   }, [periodEntries])
 
@@ -800,33 +775,6 @@ export default function Spending() {
                   Track your cash flow clearly.
                 </p>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/spending/categories"
-                  className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900/60 border border-white/5 text-zinc-400 transition-all duration-200 ease-out hover:text-white active:scale-[0.96]"
-                  aria-label="Categories"
-                >
-                  <Tags size={19} strokeWidth={2} />
-                </Link>
-
-                <Link
-                  href="/spending/scheduled"
-                  className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900/60 border border-white/5 text-zinc-400 transition-all duration-200 ease-out hover:text-white active:scale-[0.96]"
-                  aria-label="Scheduled payments"
-                >
-                  <Repeat size={19} strokeWidth={2} />
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-black transition-all duration-200 ease-out active:scale-[0.96]"
-                  aria-label="Add transaction"
-                >
-                  <Plus size={20} strokeWidth={2} />
-                </button>
-              </div>
             </div>
           </header>
 
@@ -889,111 +837,101 @@ export default function Spending() {
               {spendingInsight}
             </p>
 
+            <div className="mt-6 grid grid-cols-3 gap-4">
+              <Link
+                href="/spending/categories"
+                className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label="Categories"
+              >
+                <Tags
+                  size={21}
+                  strokeWidth={2}
+                  className="text-zinc-500 transition-colors duration-200 group-hover:text-[var(--accent)]"
+                />
+                <span className="text-xs text-zinc-500 transition-colors duration-200 group-hover:text-white">
+                  Categories
+                </span>
+              </Link>
+
+              <Link
+                href="/spending/scheduled"
+                className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label="Scheduled payments"
+              >
+                <Repeat
+                  size={21}
+                  strokeWidth={2}
+                  className="text-zinc-500 transition-colors duration-200 group-hover:text-[var(--accent)]"
+                />
+                <span className="text-xs text-zinc-500 transition-colors duration-200 group-hover:text-white">
+                  Scheduled
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label="Add transaction"
+              >
+                <Plus
+                  size={22}
+                  strokeWidth={2}
+                  className="text-[var(--accent)] transition-colors duration-200"
+                />
+                <span className="text-xs text-white">Add</span>
+              </button>
+            </div>
+
             <div className="h-px bg-white/5 mt-5" />
           </section>
 
-          {topCategories.length > 0 && (
-            <>
-              <section className="mb-6">
-                <p className="text-white text-sm font-medium mb-2">
-                  Top categories
-                </p>
-
-                <div className="grid gap-3 text-sm">
-                  {topCategories.map((group) => {
-                    const Icon = categoryIcons[group.category] || Circle
-
-                    return (
-                      <div
-                        key={group.category}
-                        className="flex items-center justify-between gap-4"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Icon
-                            size={16}
-                            strokeWidth={2}
-                            className="text-zinc-500 shrink-0"
-                          />
-                          <span className="text-zinc-400 truncate">
-                            {formatCategory(group.category)}
-                          </span>
-                        </div>
-
-                        <span className="text-white font-medium">
-                          {formatCurrency(group.total, currency)}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-
-              <div className="h-px bg-white/5 mb-6" />
-            </>
-          )}
-
           <section className="mb-24">
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <p className="text-white text-sm font-medium">
-                Active categories
-              </p>
+            <p className="text-white text-sm font-medium mb-3">Top categories</p>
 
-              <Link
-                href="/spending/categories"
-                className="text-zinc-500 text-sm transition-colors duration-200 hover:text-white"
-              >
-                View all
-              </Link>
-            </div>
-
-            {activeCategoryPreview.length === 0 ? (
+            {topCategories.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
                 <p className="text-zinc-300 text-sm">No category activity yet.</p>
                 <p className="text-zinc-600 text-sm mt-1">
-                  Add transactions to build your money flow.
+                  Add transactions to start seeing your monthly patterns.
                 </p>
               </div>
             ) : (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                {activeCategoryPreview.map((group, index) => {
+              <div className="grid gap-3 text-sm">
+                {topCategories.map((group) => {
                   const Icon = categoryIcons[group.category] || Circle
 
                   return (
-                    <Link
+                    <div
                       key={group.category}
-                      href={`/spending/categories?type=expense&category=${group.category}`}
-                      className={`flex items-center justify-between gap-4 px-5 py-4 transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                        index !== activeCategoryPreview.length - 1
-                          ? "border-b border-white/5"
-                          : ""
-                      }`}
+                      className="flex items-center justify-between gap-4"
                     >
-                      <div className="min-w-0 flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <Icon
-                          size={18}
+                          size={16}
                           strokeWidth={2}
                           className="text-zinc-500 shrink-0"
                         />
-
-                        <div className="min-w-0">
-                          <p className="text-zinc-200 font-medium">
-                            {formatCategory(group.category)}
-                          </p>
-                          <p className="text-xs text-zinc-600 mt-1">
-                            {group.entries.length} transaction
-                            {group.entries.length === 1 ? "" : "s"}
-                          </p>
-                        </div>
+                        <span className="text-zinc-400 truncate">
+                          {formatCategory(group.category)}
+                        </span>
                       </div>
 
-                      <span className="text-white text-sm font-medium shrink-0">
+                      <span className="text-white font-medium">
                         {formatCurrency(group.total, currency)}
                       </span>
-                    </Link>
+                    </div>
                   )
                 })}
               </div>
             )}
+
+            <Link
+              href="/spending/categories"
+              className="inline-flex mt-5 text-xs text-zinc-500 transition-colors duration-200 hover:text-[var(--accent)]"
+            >
+              View all categories
+            </Link>
           </section>
         </div>
       </main>
