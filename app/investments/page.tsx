@@ -215,8 +215,8 @@ export default function Portfolio() {
   const [reviewNotes, setReviewNotes] = useState("");
   const [isReviewDirty, setIsReviewDirty] = useState(false);
   const [isNewPositionsOpen, setIsNewPositionsOpen] = useState(false);
-  const [isManualCorrectionsOpen, setIsManualCorrectionsOpen] = useState(false);
-  const [isAnnualReviewOpen, setIsAnnualReviewOpen] = useState(false);
+  const [isReviewEditModalOpen, setIsReviewEditModalOpen] = useState(false);
+  const [expandedReviewYear, setExpandedReviewYear] = useState<string | null>(null);
   const [isPerformanceHighlightsOpen, setIsPerformanceHighlightsOpen] =
     useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -612,6 +612,31 @@ export default function Portfolio() {
     });
   }, [entries, monthlyReviews, totals.currentTotal]);
 
+  const annualReviewGroups = useMemo(() => {
+    const grouped = reviewHistory.reduce<
+      Record<string, typeof reviewHistory>
+    >((acc, item) => {
+      const year = item.period.slice(0, 4);
+      acc[year] = [...(acc[year] || []), item];
+      return acc;
+    }, {});
+
+    return Object.entries(grouped)
+      .map(([year, months]) => {
+        const sortedMonths = [...months].sort((a, b) =>
+          b.period.localeCompare(a.period),
+        );
+        const latestMonth = sortedMonths[0];
+
+        return {
+          year,
+          months: sortedMonths,
+          latestReturnPct: latestMonth?.returnPct ?? null,
+        };
+      })
+      .sort((a, b) => b.year.localeCompare(a.year));
+  }, [reviewHistory]);
+
   useEffect(() => {
     const review = monthlyReviews[selectedPeriod];
 
@@ -633,8 +658,8 @@ export default function Portfolio() {
     setReviewNotes(review?.notes || "");
     setIsReviewDirty(false);
     setIsNewPositionsOpen(false);
-    setIsManualCorrectionsOpen(false);
-    setIsAnnualReviewOpen(false);
+    setIsReviewEditModalOpen(false);
+    setExpandedReviewYear(null);
   }, [monthlyReviews, selectedPeriod]);
 
   const markReviewDirty = () => {
@@ -1101,9 +1126,6 @@ export default function Portfolio() {
                               </div>
                             )}
 
-                            <span className="text-zinc-500 text-lg">
-                              {isExpanded ? "⌃" : "⌄"}
-                            </span>
                           </button>
 
                           {isExpanded && (
@@ -1254,38 +1276,28 @@ export default function Portfolio() {
 
           {activeTab === "review" && (
             <section className="mb-24">
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-white text-sm font-medium mb-1">
-                    Monthly Review
-                  </p>
+              <div className="mb-5">
+                <p className="text-white text-sm font-medium mb-1">
+                  Monthly Review
+                </p>
 
-                  <div className="relative inline-block">
-                    <select
-                      value={selectedPeriod}
-                      onChange={(e) => setSelectedPeriod(e.target.value)}
-                      className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
-                    >
-                      {availablePeriods.map((period) => (
-                        <option key={period} value={period}>
-                          {formatPeriodLabel(period)}
-                        </option>
-                      ))}
-                    </select>
+                <div className="relative inline-block">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="appearance-none bg-transparent pr-6 text-white text-lg font-medium outline-none cursor-pointer"
+                  >
+                    {availablePeriods.map((period) => (
+                      <option key={period} value={period}>
+                        {formatPeriodLabel(period)}
+                      </option>
+                    ))}
+                  </select>
 
-                    <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
-                      ⌄
-                    </span>
-                  </div>
+                  <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
+                    ⌄
+                  </span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsManualCorrectionsOpen((prev) => !prev)}
-                  className="mt-1 text-zinc-500 text-sm transition-colors duration-200 hover:text-white"
-                >
-                  {isManualCorrectionsOpen ? "Close" : "Edit"}
-                </button>
               </div>
 
               <div className="mb-7">
@@ -1317,6 +1329,20 @@ export default function Portfolio() {
               </div>
 
               <div className="h-px bg-white/5 mb-6" />
+
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <p className="text-zinc-500 text-xs uppercase tracking-[0.18em]">
+                  Review Summary
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setIsReviewEditModalOpen(true)}
+                  className="text-zinc-500 text-sm transition-colors duration-200 hover:text-white"
+                >
+                  Edit
+                </button>
+              </div>
 
               <div className="mb-7 grid gap-3 text-sm">
                 <div className="flex items-center justify-between gap-4">
@@ -1371,141 +1397,119 @@ export default function Portfolio() {
                 </div>
               </div>
 
-              {isManualCorrectionsOpen && (
-                <div className="mb-7 rounded-[26px] bg-zinc-900/25 border border-white/5 p-5">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div>
-                      <p className="text-white text-sm font-medium">
-                        Manual Corrections
-                      </p>
-                      <p className="text-zinc-600 text-xs mt-1">
-                        Adjust values if the automatic review needs correction.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder={`Opening · ${formatCurrency(autoOpeningValue, currency)}`}
-                      value={reviewOpeningValue}
-                      onChange={(e) => {
-                        setReviewOpeningValue(e.target.value);
-                        markReviewDirty();
-                      }}
-                      className={fieldClass}
-                    />
-
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder={`Contributions · ${formatCurrency(periodInvested, currency)}`}
-                      value={reviewContributionsValue}
-                      onChange={(e) => {
-                        setReviewContributionsValue(e.target.value);
-                        markReviewDirty();
-                      }}
-                      className={fieldClass}
-                    />
-
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder={`Closing · ${formatCurrency(autoClosingValue, currency)}`}
-                      value={reviewClosingValue}
-                      onChange={(e) => {
-                        setReviewClosingValue(e.target.value);
-                        markReviewDirty();
-                      }}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  {isReviewDirty && (
-                    <button
-                      type="button"
-                      onClick={handleSaveReviewChanges}
-                      className="mt-4 w-full rounded-full bg-[var(--accent)] text-black h-[48px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation"
-                    >
-                      Save changes
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {reviewHistory.length > 0 && (
+                            {annualReviewGroups.length > 0 && (
                 <>
                   <div className="h-px bg-white/5 mb-6" />
 
                   <div className="mb-7">
-                    <button
-                      type="button"
-                      onClick={() => setIsAnnualReviewOpen((prev) => !prev)}
-                      className="w-full flex items-center justify-between text-left"
-                    >
-                      <div>
-                        <p className="text-white text-sm font-medium">
-                          Annual Review
-                        </p>
-                        <p className="text-zinc-600 text-xs mt-1">
-                          {reviewHistory.length} month
-                          {reviewHistory.length === 1 ? "" : "s"} tracked
-                        </p>
-                      </div>
-                      <span className="text-zinc-500 text-lg">
-                        {isAnnualReviewOpen ? "⌃" : "⌄"}
-                      </span>
-                    </button>
+                    <p className="text-zinc-500 text-xs uppercase tracking-[0.18em] mb-3">
+                      Annual Review
+                    </p>
 
-                    {isAnnualReviewOpen && (
-                      <div className="grid gap-4 text-sm mt-4">
-                        {reviewHistory.slice(0, 12).map((item) => (
-                          <button
-                            key={item.period}
-                            type="button"
-                            onClick={() => setSelectedPeriod(item.period)}
-                            className="text-left"
+                    <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                      {annualReviewGroups.map((yearGroup, yearIndex) => {
+                        const isExpanded = expandedReviewYear === yearGroup.year;
+
+                        return (
+                          <div
+                            key={yearGroup.year}
+                            className={
+                              yearIndex !== annualReviewGroups.length - 1
+                                ? "border-b border-white/5"
+                                : ""
+                            }
                           >
-                            <div className="flex items-center justify-between gap-4">
-                              <p className="text-zinc-300 font-medium">
-                                {formatPeriodLabel(item.period)}
-                              </p>
-                              <span
-                                className={`font-medium ${
-                                  item.returnPct === null
-                                    ? "text-zinc-500"
-                                    : item.returnPct >= 0
-                                      ? "text-green-500"
-                                      : "text-red-500"
-                                }`}
-                              >
-                                {item.returnPct === null
-                                  ? "—"
-                                  : formatSignedPercent(item.returnPct)}
-                              </span>
-                            </div>
-                            <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
-                              Opening {formatCurrency(item.opening, currency)} ·
-                              Contributions{" "}
-                              {formatCurrency(item.contributions, currency)} ·
-                              Closing {formatCurrency(item.closing, currency)}
-                            </p>
-                            <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
-                              Real Profit{" "}
-                              {formatSignedCurrency(item.profit, currency)} ·
-                              Real Return{" "}
-                              {item.returnPct === null
-                                ? "—"
-                                : formatSignedPercent(item.returnPct)}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedReviewYear((prev) =>
+                                  prev === yearGroup.year ? null : yearGroup.year,
+                                )
+                              }
+                              className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-zinc-200 font-medium">
+                                  {yearGroup.year}
+                                </p>
+
+                                {!isExpanded && (
+                                  <p className="text-xs text-zinc-600 mt-1">
+                                    {yearGroup.months.length} month
+                                    {yearGroup.months.length === 1 ? "" : "s"} tracked
+                                  </p>
+                                )}
+                              </div>
+
+                              {!isExpanded && (
+                                <div className="text-right shrink-0">
+                                  <p
+                                    className={`text-sm font-medium ${
+                                      yearGroup.latestReturnPct === null
+                                        ? "text-zinc-500"
+                                        : yearGroup.latestReturnPct >= 0
+                                          ? "text-green-500"
+                                          : "text-red-500"
+                                    }`}
+                                  >
+                                    {yearGroup.latestReturnPct === null
+                                      ? "—"
+                                      : formatSignedPercent(
+                                          yearGroup.latestReturnPct,
+                                        )}
+                                  </p>
+                                </div>
+                              )}
+                            </button>
+
+                            {isExpanded && (
+                              <div className="px-5 pb-5">
+                                <div className="space-y-4">
+                                  {yearGroup.months.map((item) => (
+                                    <button
+                                      key={item.period}
+                                      type="button"
+                                      onClick={() => setSelectedPeriod(item.period)}
+                                      className="w-full text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                                    >
+                                      <div className="flex items-center justify-between gap-4">
+                                        <p className="text-zinc-300 font-medium">
+                                          {formatPeriodLabel(item.period)}
+                                        </p>
+                                        <span
+                                          className={`font-medium ${
+                                            item.returnPct === null
+                                              ? "text-zinc-500"
+                                              : item.returnPct >= 0
+                                                ? "text-green-500"
+                                                : "text-red-500"
+                                          }`}
+                                        >
+                                          {item.returnPct === null
+                                            ? "—"
+                                            : formatSignedPercent(item.returnPct)}
+                                        </span>
+                                      </div>
+
+                                      <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
+                                        Opening {formatCurrency(item.opening, currency)} ·
+                                        Contributions {" "}
+                                        {formatCurrency(item.contributions, currency)} ·
+                                        Closing {formatCurrency(item.closing, currency)}
+                                      </p>
+
+                                      <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
+                                        Real Profit {formatSignedCurrency(item.profit, currency)}
+                                      </p>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </>
               )}
@@ -1680,38 +1684,96 @@ export default function Portfolio() {
                 </>
               )}
 
-              <div className="h-px bg-white/5 mb-6" />
-
-              <div className="mb-7">
-                <label className="text-white text-sm font-medium mb-3 block">
-                  Monthly Notes
-                </label>
-                <textarea
-                  value={reviewNotes}
-                  onChange={(e) => {
-                    setReviewNotes(e.target.value);
-                    markReviewDirty();
-                  }}
-                  rows={3}
-                  className="w-full bg-zinc-900/35 border border-white/5 rounded-[22px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
-                  placeholder="Add strategy notes or context for this month."
-                />
-
-                {isReviewDirty && !isManualCorrectionsOpen && (
-                  <button
-                    type="button"
-                    onClick={handleSaveReviewChanges}
-                    className="mt-4 w-full rounded-full bg-[var(--accent)] text-black h-[48px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation"
-                  >
-                    Save changes
-                  </button>
-                )}
-              </div>
             </section>
           )}
         </div>
       </main>
 
+
+      {isReviewEditModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={() => setIsReviewEditModalOpen(false)}
+        >
+          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-white text-sm font-medium">
+                    Edit monthly review
+                  </p>
+                  <p className="text-zinc-600 text-xs mt-1">
+                    Adjust values if the automatic review needs correction.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsReviewEditModalOpen(false)}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="grid gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={`Opening · ${formatCurrency(autoOpeningValue, currency)}`}
+                  value={reviewOpeningValue}
+                  onChange={(e) => {
+                    setReviewOpeningValue(e.target.value);
+                    markReviewDirty();
+                  }}
+                  className={fieldClass}
+                />
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={`Contributions · ${formatCurrency(periodInvested, currency)}`}
+                  value={reviewContributionsValue}
+                  onChange={(e) => {
+                    setReviewContributionsValue(e.target.value);
+                    markReviewDirty();
+                  }}
+                  className={fieldClass}
+                />
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={`Closing · ${formatCurrency(autoClosingValue, currency)}`}
+                  value={reviewClosingValue}
+                  onChange={(e) => {
+                    setReviewClosingValue(e.target.value);
+                    markReviewDirty();
+                  }}
+                  className={fieldClass}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveReviewChanges();
+                    setIsReviewEditModalOpen(false);
+                  }}
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {isAssetModalOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
