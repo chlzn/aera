@@ -1,15 +1,21 @@
+import type { Metadata, Viewport } from "next"
 import { CurrencyProvider } from "@/context/currency-context"
+import { LanguageProvider } from "@/context/language-context"
 import AppShell from "@/components/AppShell"
 import "./globals.css"
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Aera",
-  description: "Finance OS",
+  description: "Personal finance OS",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#000000",
 }
 
 export default function RootLayout({
@@ -27,10 +33,13 @@ export default function RootLayout({
           content="black-translucent"
         />
       </head>
+
       <body>
-        <CurrencyProvider>
-          <AppShell>{children}</AppShell>
-        </CurrencyProvider>
+        <LanguageProvider>
+          <CurrencyProvider>
+            <AppShell>{children}</AppShell>
+          </CurrencyProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

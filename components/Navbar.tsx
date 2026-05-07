@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useLanguage } from "@/context/language-context"
 import {
   House,
   Wallet,
@@ -12,13 +13,18 @@ import {
 
 export default function Navbar() {
   const pathname = usePathname()
+  const { copy } = useLanguage()
 
   const links = [
-    { href: "/", label: "Home", icon: House },
-    { href: "/spending", label: "Spending", icon: Wallet },
-    { href: "/investments", label: "Portfolio", icon: ChartNoAxesCombined },
-    { href: "/tools", label: "Tools", icon: SlidersHorizontal },
-    { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/", label: copy.nav.home, icon: House },
+    { href: "/spending", label: copy.nav.spending, icon: Wallet },
+    {
+      href: "/investments",
+      label: copy.nav.portfolio,
+      icon: ChartNoAxesCombined,
+    },
+    { href: "/tools", label: copy.nav.tools, icon: SlidersHorizontal },
+    { href: "/settings", label: copy.nav.settings, icon: Settings },
   ]
 
   return (
