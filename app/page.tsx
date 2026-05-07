@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowUpRight, CircleDollarSign, Layers, Wallet } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
@@ -531,9 +532,6 @@ export default function Home() {
         <div className="h-px bg-white/5 mb-7" />
 
         <section className="mb-8">
-          <p className="text-white text-sm font-medium mb-2">
-            Financial status
-          </p>
           <p className="text-zinc-400 text-sm leading-relaxed">{insight}</p>
         </section>
 
@@ -580,42 +578,51 @@ export default function Home() {
 
         <div className="h-px bg-white/5 mb-7" />
 
-        <section className="mb-24">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-white text-sm font-medium">This month</p>
-            <ArrowUpRight size={16} strokeWidth={2} className="text-zinc-600" />
-          </div>
-
-          <div className="grid gap-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-500">Income</span>
-              <span className="text-white font-medium">
-                {formatCurrency(monthlyIncome, currency)}
-              </span>
+        <Link
+          href="/spending"
+          className="block mb-24 transition-all duration-200 ease-out active:scale-[0.995]"
+        >
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-white text-sm font-medium">This month</p>
+              <ArrowUpRight
+                size={16}
+                strokeWidth={2}
+                className="text-zinc-600"
+              />
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-500">Expenses</span>
-              <span className="text-white font-medium">
-                {formatCurrency(monthlyExpenses, currency)}
-              </span>
-            </div>
+            <div className="grid gap-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-500">Income</span>
+                <span className="text-white font-medium">
+                  {formatCurrency(monthlyIncome, currency)}
+                </span>
+              </div>
 
-            <div className="h-px bg-white/5 my-1" />
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-500">Expenses</span>
+                <span className="text-white font-medium">
+                  {formatCurrency(monthlyExpenses, currency)}
+                </span>
+              </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-300">Result</span>
-              <span
-                className={`font-medium ${
-                  monthlyResult >= 0 ? "text-green-500" : "text-red-500"
-                }`}
-              >
-                {monthlyResult >= 0 ? "+" : ""}
-                {formatCurrency(monthlyResult, currency)}
-              </span>
+              <div className="h-px bg-white/5 my-1" />
+
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">Result</span>
+                <span
+                  className={`font-medium ${
+                    monthlyResult >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {monthlyResult >= 0 ? "+" : ""}
+                  {formatCurrency(monthlyResult, currency)}
+                </span>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </Link>
       </div>
     </main>
   )
