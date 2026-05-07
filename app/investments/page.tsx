@@ -217,8 +217,6 @@ export default function Portfolio() {
   const [isNewPositionsOpen, setIsNewPositionsOpen] = useState(false);
   const [isReviewEditModalOpen, setIsReviewEditModalOpen] = useState(false);
   const [expandedReviewYear, setExpandedReviewYear] = useState<string | null>(null);
-  const [isPerformanceHighlightsOpen, setIsPerformanceHighlightsOpen] =
-    useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const [selectedHoldingKey, setSelectedHoldingKey] = useState<string | null>(
@@ -565,20 +563,6 @@ export default function Portfolio() {
       addedThisMonth: rows.filter((item) => !item.isNewPosition),
     };
   }, [entries, periodEntries, selectedPeriod]);
-
-  const bestPerformers = useMemo(() => {
-    return holdings
-      .filter((holding) => holding.invested > 0)
-      .sort((a, b) => b.profitPct - a.profitPct)
-      .slice(0, 3);
-  }, [holdings]);
-
-  const worstPerformers = useMemo(() => {
-    return holdings
-      .filter((holding) => holding.invested > 0)
-      .sort((a, b) => a.profitPct - b.profitPct)
-      .slice(0, 3);
-  }, [holdings]);
 
   const reviewHistory = useMemo(() => {
     const periods = Array.from(
@@ -1330,21 +1314,13 @@ export default function Portfolio() {
 
               <div className="h-px bg-white/5 mb-6" />
 
-              <div className="mb-3 flex items-center justify-between gap-4">
+              <div className="mb-3">
                 <p className="text-zinc-500 text-xs uppercase tracking-[0.18em]">
                   Review Summary
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() => setIsReviewEditModalOpen(true)}
-                  className="text-zinc-500 text-sm transition-colors duration-200 hover:text-white"
-                >
-                  Edit
-                </button>
               </div>
 
-              <div className="mb-7 grid gap-3 text-sm">
+              <div className="mb-3 grid gap-3 text-sm">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-500">Opening Value</span>
                   <span className="text-white font-medium">
@@ -1397,7 +1373,15 @@ export default function Portfolio() {
                 </div>
               </div>
 
-                            {annualReviewGroups.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsReviewEditModalOpen(true)}
+                className="mb-7 text-xs text-zinc-600 transition-colors duration-200 hover:text-zinc-300"
+              >
+                Edit values
+              </button>
+
+              {annualReviewGroups.length > 0 && (
                 <>
                   <div className="h-px bg-white/5 mb-6" />
 
@@ -1513,88 +1497,6 @@ export default function Portfolio() {
                   </div>
                 </>
               )}
-
-              <div className="h-px bg-white/5 mb-6" />
-
-              <div className="mb-7">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setIsPerformanceHighlightsOpen((prev) => !prev)
-                  }
-                  className="w-full flex items-center justify-between text-left"
-                >
-                  <div>
-                    <p className="text-white text-sm font-medium">
-                      Performance Highlights
-                    </p>
-                    <p className="text-zinc-600 text-xs mt-1">
-                      Top 3 best and worst performers
-                    </p>
-                  </div>
-                  <span className="text-zinc-500 text-lg">
-                    {isPerformanceHighlightsOpen ? "⌃" : "⌄"}
-                  </span>
-                </button>
-
-                {isPerformanceHighlightsOpen && (
-                  <div className="grid gap-6 mt-4">
-                    <div>
-                      <p className="text-zinc-400 text-xs mb-3">
-                        Best performers
-                      </p>
-                      {bestPerformers.length === 0 ? (
-                        <p className="text-zinc-600 text-sm">
-                          No performance data yet.
-                        </p>
-                      ) : (
-                        <div className="grid gap-3 text-sm">
-                          {bestPerformers.map((holding) => (
-                            <div
-                              key={holding.key}
-                              className="flex items-center justify-between gap-4"
-                            >
-                              <p className="text-zinc-300 truncate">
-                                {holding.ticker || holding.name}
-                              </p>
-                              <span className="text-green-500 font-medium shrink-0">
-                                {formatSignedPercent(holding.profitPct)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="text-zinc-400 text-xs mb-3">
-                        Worst performers
-                      </p>
-                      {worstPerformers.length === 0 ? (
-                        <p className="text-zinc-600 text-sm">
-                          No performance data yet.
-                        </p>
-                      ) : (
-                        <div className="grid gap-3 text-sm">
-                          {worstPerformers.map((holding) => (
-                            <div
-                              key={holding.key}
-                              className="flex items-center justify-between gap-4"
-                            >
-                              <p className="text-zinc-300 truncate">
-                                {holding.ticker || holding.name}
-                              </p>
-                              <span className="text-red-500 font-medium shrink-0">
-                                {formatSignedPercent(holding.profitPct)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
 
               {(contributionGroups.newPositions.length > 0 ||
                 contributionGroups.addedThisMonth.length > 0) && (
