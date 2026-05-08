@@ -63,6 +63,24 @@ type CategoryPreview = {
   entries: DisplayEntry[]
 }
 
+type PortfolioCashMovement = {
+  id: string
+  type:
+    | "deposit"
+    | "withdrawal"
+    | "sell_proceeds"
+    | "buy_from_cash"
+    | "reallocation_buy"
+  amount: number
+  date: string
+  sourceActivityId?: string
+  investmentEntryId?: string
+  sourceSpendingEntryId?: string
+  notes?: string
+  createdAt: string
+  updatedAt?: string
+}
+
 const incomeCategories: { value: EntryCategory; label: string }[] = [
   { value: "salary", label: "Salary" },
   { value: "freelance", label: "Freelance" },
@@ -207,6 +225,69 @@ function getCategoryLabel(
   return copy.categoriesNames[category] ?? formatCategory(category)
 }
 
+function syncInvestmentExpensesToPortfolioCash(spendingEntries: Entry[]) {
+  try {
+    const savedMovements = localStorage.getItem("portfolioCashMovements")
+    const parsedMovements = savedMovements ? JSON.parse(savedMovements) : []
+    const existingMovements: PortfolioCashMovement[] = Array.isArray(
+      parsedMovements
+    )
+      ? parsedMovements
+      : []
+
+    const investmentExpenseEntries = spendingEntries.filter(
+      (entry) => entry.type === "expense" && entry.category === "investments"
+    )
+
+    const investmentExpenseIds = new Set(
+      investmentExpenseEntries.map((entry) => entry.id)
+    )
+
+    const movementsWithoutStaleSpendingDeposits = existingMovements.filter(
+      (movement) =>
+        !movement.sourceSpendingEntryId ||
+        investmentExpenseIds.has(movement.sourceSpendingEntryId)
+    )
+
+    const movementsWithoutDuplicatedSpendingDeposits =
+      movementsWithoutStaleSpendingDeposits.filter((movement) => {
+        if (!movement.sourceSpendingEntryId) return true
+
+        return !investmentExpenseEntries.some(
+          (entry) => entry.id === movement.sourceSpendingEntryId
+        )
+      })
+
+    const now = new Date().toISOString()
+
+    const investmentDeposits: PortfolioCashMovement[] =
+      investmentExpenseEntries.map((entry) => ({
+        id: `spending-investment-${entry.id}`,
+        type: "deposit",
+        amount: entry.amount,
+        date: entry.date,
+        sourceSpendingEntryId: entry.id,
+        notes: entry.description
+          ? `Portfolio deposit from Spending · ${entry.description}`
+          : "Portfolio deposit from Spending",
+        createdAt: entry.createdAt || now,
+        updatedAt: entry.updatedAt || now,
+      }))
+
+    localStorage.setItem(
+      "portfolioCashMovements",
+      JSON.stringify([
+        ...investmentDeposits,
+        ...movementsWithoutDuplicatedSpendingDeposits,
+      ])
+    )
+
+    window.dispatchEvent(new Event("aera-storage-updated"))
+  } catch {
+    // silent
+  }
+}
+
 export default function Spending() {
   const { currency } = useCurrency()
   const { copy } = useLanguage()
@@ -288,6 +369,12 @@ export default function Spending() {
       // silent
     }
   }, [entries, templates, paidScheduledIds, entriesHydrated])
+
+  useEffect(() => {
+    if (!entriesHydrated) return
+
+    syncInvestmentExpensesToPortfolioCash(entries)
+  }, [entries, entriesHydrated])
 
   useEffect(() => {
     const validCategories =

@@ -20,6 +20,14 @@ type AssetType =
   | "other";
 
 type PortfolioTab = "overview" | "holdings" | "activity" | "review";
+type InvestmentFundingSource = "external" | "portfolio_cash" | "reallocation";
+type SellDestination = "portfolio_cash" | "personal_cash" | "reallocate";
+type PortfolioCashMovementType =
+  | "deposit"
+  | "withdrawal"
+  | "sell_proceeds"
+  | "buy_from_cash"
+  | "reallocation_buy";
 
 type LegacyInvestment = {
   id: string;
@@ -45,6 +53,8 @@ type InvestmentEntry = {
   accountId: string;
   createdAt: string;
   updatedAt: string;
+  fundingSource?: InvestmentFundingSource;
+  sourceActivityId?: string;
 };
 
 type SpendingEntry = {
@@ -78,6 +88,18 @@ type SpendingEntry = {
   portfolioActivityId?: string;
 };
 
+type PortfolioCashMovement = {
+  id: string;
+  type: PortfolioCashMovementType;
+  amount: number;
+  date: string;
+  sourceActivityId?: string;
+  investmentEntryId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 type PortfolioActivityEntry = {
   id: string;
   holdingKey: string;
@@ -88,11 +110,13 @@ type PortfolioActivityEntry = {
   date: string;
   ticker?: string;
   notes?: string;
+  cashDestination: SellDestination;
   investedAtSale?: number;
   realizedProfit?: number;
   closesPosition?: boolean;
   previousCurrentValue?: number;
   cashEntryId?: string;
+  linkedBuyEntryId?: string;
   createdAt: string;
   updatedAt?: string;
 };
@@ -126,6 +150,7 @@ type MonthlyReview = {
   openingValue?: number;
   closingValue?: number;
   contributionsOverride?: number;
+  withdrawalsOverride?: number;
   notes?: string;
   updatedAt: string;
 };
@@ -197,9 +222,7 @@ function generateId() {
 
 function getHoldingKey(name: string, ticker?: string) {
   const cleanTicker = ticker?.trim().toUpperCase();
-
   if (cleanTicker) return cleanTicker;
-
   return name.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
@@ -230,7 +253,6 @@ function formatSignedPercent(value: number) {
 
 function parseOptionalNumber(value: string) {
   if (!value.trim()) return null;
-
   const parsed = Number(value);
   return Number.isNaN(parsed) ? null : parsed;
 }
@@ -287,7 +309,7 @@ function upsertSellProceedsToCashFlow({
 
     window.dispatchEvent(new Event("aera-storage-updated"));
   } catch {
-    // silent: portfolio sell should still be preserved even if cash flow sync fails
+    // silent
   }
 
   return nextCashEntryId;
@@ -296,15 +318,9 @@ function upsertSellProceedsToCashFlow({
 function removeSellProceedsFromCashFlow({
   cashEntryId,
   portfolioActivityId,
-  description,
-  amount,
-  date,
 }: {
   cashEntryId?: string;
   portfolioActivityId: string;
-  description?: string;
-  amount?: number;
-  date?: string;
 }) {
   try {
     const savedEntries = localStorage.getItem("entries");
@@ -313,25 +329,22 @@ function removeSellProceedsFromCashFlow({
       ? parsedEntries
       : [];
 
-    const nextEntries = existingEntries.filter((entry) => {
-      const matchesLinkedEntry =
-        entry.id === cashEntryId || entry.portfolioActivityId === portfolioActivityId;
-      const matchesFallbackEntry =
-        Boolean(description && date && typeof amount === "number") &&
-        entry.description === description &&
-        entry.date === date &&
-        entry.amount === amount &&
-        entry.type === "income" &&
-        entry.category === "investment_income";
-
-      return !matchesLinkedEntry && !matchesFallbackEntry;
-    });
+    const nextEntries = existingEntries.filter(
+      (entry) =>
+        entry.id !== cashEntryId &&
+        entry.portfolioActivityId !== portfolioActivityId,
+    );
 
     localStorage.setItem("entries", JSON.stringify(nextEntries));
     window.dispatchEvent(new Event("aera-storage-updated"));
   } catch {
     // silent
   }
+}
+
+function getCashMovementSign(type: PortfolioCashMovementType) {
+  if (type === "deposit" || type === "sell_proceeds") return 1;
+  return -1;
 }
 
 export default function Portfolio() {
@@ -343,6 +356,9 @@ export default function Portfolio() {
   );
   const [portfolioActivity, setPortfolioActivity] = useState<
     PortfolioActivityEntry[]
+  >([]);
+  const [portfolioCashMovements, setPortfolioCashMovements] = useState<
+    PortfolioCashMovement[]
   >([]);
   const [closedHoldingKeys, setClosedHoldingKeys] = useState<string[]>([]);
   const [monthlyReviews, setMonthlyReviews] = useState<
@@ -360,16 +376,20 @@ export default function Portfolio() {
   const [ticker, setTicker] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(getTodayDate());
+  const [assetFundingSource, setAssetFundingSource] =
+    useState<InvestmentFundingSource>("external");
 
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey());
   const [reviewOpeningValue, setReviewOpeningValue] = useState("");
   const [reviewClosingValue, setReviewClosingValue] = useState("");
   const [reviewContributionsValue, setReviewContributionsValue] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
+  const [reviewWithdrawalsValue, setReviewWithdrawalsValue] = useState("");
   const [isReviewDirty, setIsReviewDirty] = useState(false);
   const [isNewPositionsOpen, setIsNewPositionsOpen] = useState(false);
   const [isReviewEditModalOpen, setIsReviewEditModalOpen] = useState(false);
-  const [expandedReviewYear, setExpandedReviewYear] = useState<string | null>(null);
+  const [expandedReviewYear, setExpandedReviewYear] = useState<string | null>(
+    null,
+  );
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const [selectedHoldingKey, setSelectedHoldingKey] = useState<string | null>(
@@ -380,15 +400,22 @@ export default function Portfolio() {
   const [isInvestMoreOpen, setIsInvestMoreOpen] = useState(false);
   const [investMoreAmount, setInvestMoreAmount] = useState("");
   const [investMoreDate, setInvestMoreDate] = useState(getTodayDate());
+  const [investMoreFundingSource, setInvestMoreFundingSource] =
+    useState<InvestmentFundingSource>("external");
 
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [editingSellId, setEditingSellId] = useState<string | null>(null);
   const [sellAmount, setSellAmount] = useState("");
   const [sellDate, setSellDate] = useState(getTodayDate());
   const [sellNotes, setSellNotes] = useState("");
+  const [sellDestination, setSellDestination] =
+    useState<SellDestination>("portfolio_cash");
+  const [reallocateName, setReallocateName] = useState("");
+  const [reallocateType, setReallocateType] = useState<AssetType>("stock");
+  const [reallocateTicker, setReallocateTicker] = useState("");
+  const [reallocateAmount, setReallocateAmount] = useState("");
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-
   const [isActivityListOpen, setIsActivityListOpen] = useState(true);
   const [error, setError] = useState("");
 
@@ -403,11 +430,26 @@ export default function Portfolio() {
       );
       const savedPortfolioActivity = localStorage.getItem("portfolioActivity");
       const savedClosedHoldingKeys = localStorage.getItem("closedHoldingKeys");
+      const savedPortfolioCashMovements = localStorage.getItem(
+        "portfolioCashMovements",
+      );
 
       if (savedPortfolioActivity) {
         const parsedPortfolioActivity = JSON.parse(savedPortfolioActivity);
         setPortfolioActivity(
-          Array.isArray(parsedPortfolioActivity) ? parsedPortfolioActivity : [],
+          Array.isArray(parsedPortfolioActivity)
+            ? parsedPortfolioActivity.map((activity) => ({
+                ...activity,
+                cashDestination: activity.cashDestination || "personal_cash",
+              }))
+            : [],
+        );
+      }
+
+      if (savedPortfolioCashMovements) {
+        const parsedMovements = JSON.parse(savedPortfolioCashMovements);
+        setPortfolioCashMovements(
+          Array.isArray(parsedMovements) ? parsedMovements : [],
         );
       }
 
@@ -460,6 +502,7 @@ export default function Portfolio() {
                 accountId: asset.accountId || "main",
                 createdAt: asset.createdAt || new Date().toISOString(),
                 updatedAt: asset.updatedAt || new Date().toISOString(),
+                fundingSource: "external",
               }),
             );
 
@@ -480,12 +523,21 @@ export default function Portfolio() {
       setEntries([]);
       setHoldingValues({});
       setPortfolioActivity([]);
+      setPortfolioCashMovements([]);
       setClosedHoldingKeys([]);
       setMonthlyReviews({});
     } finally {
       setEntriesHydrated(true);
     }
   }, []);
+
+  const portfolioCashBalance = useMemo(() => {
+    return portfolioCashMovements.reduce(
+      (sum, movement) =>
+        sum + movement.amount * getCashMovementSign(movement.type),
+      0,
+    );
+  }, [portfolioCashMovements]);
 
   const holdings = useMemo<PortfolioHolding[]>(() => {
     const grouped = entries.reduce<Record<string, InvestmentEntry[]>>(
@@ -514,7 +566,6 @@ export default function Portfolio() {
           typeof holdingValues[key] === "number"
             ? holdingValues[key]
             : invested;
-
         const profit = currentValue - invested;
         const profitPct = invested > 0 ? (profit / invested) * 100 : 0;
 
@@ -541,27 +592,29 @@ export default function Portfolio() {
     );
   }, [holdings, closedHoldingKeys]);
 
-  const totals = useMemo(() => {
+  const holdingTotals = useMemo(() => {
     const investedTotal = activeHoldings.reduce(
       (acc, holding) => acc + holding.invested,
       0,
     );
-
     const currentTotal = activeHoldings.reduce(
       (acc, holding) => acc + holding.currentValue,
       0,
     );
-
     const profit = currentTotal - investedTotal;
     const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0;
 
-    return {
-      investedTotal,
-      currentTotal,
-      profit,
-      profitPct,
-    };
+    return { investedTotal, currentTotal, profit, profitPct };
   }, [activeHoldings]);
+
+  const totals = useMemo(() => {
+    const currentTotal = holdingTotals.currentTotal + portfolioCashBalance;
+    const investedTotal = holdingTotals.investedTotal;
+    const profit = currentTotal - investedTotal;
+    const profitPct = investedTotal > 0 ? (profit / investedTotal) * 100 : 0;
+
+    return { investedTotal, currentTotal, profit, profitPct };
+  }, [holdingTotals, portfolioCashBalance]);
 
   const groups = useMemo<PortfolioGroup[]>(() => {
     return assetTypeOrder
@@ -574,12 +627,10 @@ export default function Portfolio() {
           (sum, holding) => sum + holding.invested,
           0,
         );
-
         const currentValue = groupHoldings.reduce(
           (sum, holding) => sum + holding.currentValue,
           0,
         );
-
         const profit = currentValue - invested;
         const profitPct = invested > 0 ? (profit / invested) * 100 : 0;
         const allocationPct =
@@ -614,7 +665,14 @@ export default function Portfolio() {
         "investmentMonthlyReviews",
         JSON.stringify(monthlyReviews),
       );
-      localStorage.setItem("portfolioActivity", JSON.stringify(portfolioActivity));
+      localStorage.setItem(
+        "portfolioActivity",
+        JSON.stringify(portfolioActivity),
+      );
+      localStorage.setItem(
+        "portfolioCashMovements",
+        JSON.stringify(portfolioCashMovements),
+      );
       localStorage.setItem(
         "closedHoldingKeys",
         JSON.stringify(closedHoldingKeys),
@@ -643,14 +701,16 @@ export default function Portfolio() {
     holdingValues,
     monthlyReviews,
     portfolioActivity,
+    portfolioCashMovements,
     closedHoldingKeys,
     activeHoldings,
     entriesHydrated,
   ]);
 
-  const availablePeriods = useMemo(() => {
-    return getAvailablePeriodsFromCurrentYear();
-  }, []);
+  const availablePeriods = useMemo(
+    () => getAvailablePeriodsFromCurrentYear(),
+    [],
+  );
 
   const periodEntries = useMemo(() => {
     return entries
@@ -658,7 +718,26 @@ export default function Portfolio() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [entries, selectedPeriod]);
 
-  const periodInvested = periodEntries.reduce(
+  const externalPeriodEntries = useMemo(() => {
+    return periodEntries.filter(
+      (entry) => !entry.fundingSource || entry.fundingSource === "external",
+    );
+  }, [periodEntries]);
+
+  const reallocatedPeriodEntries = useMemo(() => {
+    return periodEntries.filter(
+      (entry) =>
+        entry.fundingSource === "portfolio_cash" ||
+        entry.fundingSource === "reallocation",
+    );
+  }, [periodEntries]);
+
+  const periodExternalDeposits = externalPeriodEntries.reduce(
+    (acc, entry) => acc + entry.amount,
+    0,
+  );
+
+  const periodReallocated = reallocatedPeriodEntries.reduce(
     (acc, entry) => acc + entry.amount,
     0,
   );
@@ -669,10 +748,17 @@ export default function Portfolio() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [portfolioActivity, selectedPeriod]);
 
-  const periodSellProceeds = periodSellEntries.reduce(
-    (sum, entry) => sum + entry.amount,
-    0,
-  );
+  const periodWithdrawals = periodSellEntries
+    .filter((entry) => entry.cashDestination === "personal_cash")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+
+  const periodPortfolioCashProceeds = periodSellEntries
+    .filter(
+      (entry) =>
+        entry.cashDestination === "portfolio_cash" ||
+        entry.cashDestination === "reallocate",
+    )
+    .reduce((sum, entry) => sum + entry.amount, 0);
 
   const periodActivityEntries = useMemo(() => {
     const buyRows = periodEntries.map((entry) => ({
@@ -697,8 +783,35 @@ export default function Portfolio() {
       source: entry,
     }));
 
-    return [...buyRows, ...sellRows].sort((a, b) => b.date.localeCompare(a.date));
-  }, [periodEntries, periodSellEntries]);
+    const cashRows = portfolioCashMovements
+      .filter((movement) => movement.date.slice(0, 7) === selectedPeriod)
+      .map((movement) => ({
+        id: movement.id,
+        kind: "cash" as const,
+        name:
+          movement.type === "deposit"
+            ? "Portfolio cash deposit"
+            : movement.type === "withdrawal"
+              ? "Portfolio cash withdrawal"
+              : movement.type === "sell_proceeds"
+                ? "Cash from sale"
+                : "Used portfolio cash",
+        type: "cash" as AssetType,
+        ticker: undefined,
+        amount: movement.amount,
+        date: movement.date,
+        source: movement,
+      }));
+
+    return [...buyRows, ...sellRows, ...cashRows].sort((a, b) =>
+      b.date.localeCompare(a.date),
+    );
+  }, [
+    periodEntries,
+    periodSellEntries,
+    portfolioCashMovements,
+    selectedPeriod,
+  ]);
 
   const selectedHolding = useMemo(() => {
     return (
@@ -708,14 +821,18 @@ export default function Portfolio() {
 
   const selectedSellActivity = useMemo(() => {
     return (
-      portfolioActivity.find((activity) => activity.id === editingSellId) || null
+      portfolioActivity.find((activity) => activity.id === editingSellId) ||
+      null
     );
   }, [portfolioActivity, editingSellId]);
 
-  const sellModalName = selectedHolding?.name || selectedSellActivity?.name || "Position";
-  const sellModalTicker = selectedHolding?.ticker || selectedSellActivity?.ticker;
+  const sellModalName =
+    selectedHolding?.name || selectedSellActivity?.name || "Position";
   const sellModalCurrentValue =
-    selectedHolding?.currentValue ?? selectedSellActivity?.previousCurrentValue ?? selectedSellActivity?.amount ?? 0;
+    selectedHolding?.currentValue ??
+    selectedSellActivity?.previousCurrentValue ??
+    selectedSellActivity?.amount ??
+    0;
 
   const topAllocation = groups[0];
 
@@ -745,22 +862,25 @@ export default function Portfolio() {
   const manualOpeningValue = parseOptionalNumber(reviewOpeningValue);
   const manualClosingValue = parseOptionalNumber(reviewClosingValue);
   const manualContributions = parseOptionalNumber(reviewContributionsValue);
+  const manualWithdrawals = parseOptionalNumber(reviewWithdrawalsValue);
 
   const reviewOpening = selectedReview?.openingValue ?? autoOpeningValue;
   const reviewClosing = selectedReview?.closingValue ?? autoClosingValue;
-  const reviewContributions =
-    selectedReview?.contributionsOverride ?? periodInvested;
+  const reviewDeposits =
+    selectedReview?.contributionsOverride ?? periodExternalDeposits;
+  const reviewWithdrawals =
+    selectedReview?.withdrawalsOverride ?? periodWithdrawals;
 
   const displayedReviewOpening = manualOpeningValue ?? reviewOpening;
   const displayedReviewClosing = manualClosingValue ?? reviewClosing;
-  const displayedReviewContributions =
-    manualContributions ?? reviewContributions;
+  const displayedReviewDeposits = manualContributions ?? reviewDeposits;
+  const displayedReviewWithdrawals = manualWithdrawals ?? reviewWithdrawals;
 
   const realProfit =
-    displayedReviewClosing +
-    periodSellProceeds -
+    displayedReviewClosing -
     displayedReviewOpening -
-    displayedReviewContributions;
+    displayedReviewDeposits +
+    displayedReviewWithdrawals;
   const realReturn =
     displayedReviewOpening > 0
       ? (realProfit / displayedReviewOpening) * 100
@@ -774,6 +894,7 @@ export default function Portfolio() {
       amount: number;
       type: AssetType;
       isNewPosition: boolean;
+      fundingSource?: InvestmentFundingSource;
     };
 
     const grouped = periodEntries.reduce<Record<string, ContributionGroup>>(
@@ -793,6 +914,7 @@ export default function Portfolio() {
             amount: 0,
             type: entry.type,
             isNewPosition: !hadPreviousPosition,
+            fundingSource: entry.fundingSource || "external",
           };
         }
 
@@ -816,46 +938,66 @@ export default function Portfolio() {
     const periods = Array.from(
       new Set([
         ...entries.map((entry) => entry.date.slice(0, 7)),
+        ...portfolioActivity.map((entry) => entry.date.slice(0, 7)),
         ...Object.keys(monthlyReviews),
       ]),
     ).sort((a, b) => b.localeCompare(a));
 
     return periods.map((period) => {
       const review = monthlyReviews[period];
-      const monthContributions = entries
-        .filter((entry) => entry.date.slice(0, 7) === period)
+      const monthDeposits = entries
+        .filter(
+          (entry) =>
+            entry.date.slice(0, 7) === period &&
+            (!entry.fundingSource || entry.fundingSource === "external"),
+        )
         .reduce((sum, entry) => sum + entry.amount, 0);
-      const monthSellProceeds = portfolioActivity
-        .filter((entry) => entry.date.slice(0, 7) === period)
+      const monthReallocated = entries
+        .filter(
+          (entry) =>
+            entry.date.slice(0, 7) === period &&
+            (entry.fundingSource === "portfolio_cash" ||
+              entry.fundingSource === "reallocation"),
+        )
+        .reduce((sum, entry) => sum + entry.amount, 0);
+      const monthWithdrawals = portfolioActivity
+        .filter(
+          (entry) =>
+            entry.date.slice(0, 7) === period &&
+            entry.cashDestination === "personal_cash",
+        )
         .reduce((sum, entry) => sum + entry.amount, 0);
       const opening = review?.openingValue ?? 0;
       const closing =
         review?.closingValue ??
         (period === getCurrentPeriodKey() ? totals.currentTotal : 0);
-      const contributions = review?.contributionsOverride ?? monthContributions;
-      const profit = closing + monthSellProceeds - opening - contributions;
+      const deposits = review?.contributionsOverride ?? monthDeposits;
+      const withdrawals = review?.withdrawalsOverride ?? monthWithdrawals;
+      const profit = closing - opening - deposits + withdrawals;
       const returnPct = opening > 0 ? (profit / opening) * 100 : null;
 
       return {
         period,
         opening,
-        contributions,
+        deposits,
+        withdrawals,
+        reallocated: monthReallocated,
         closing,
-        sellProceeds: monthSellProceeds,
         profit,
         returnPct,
       };
     });
-  }, [entries, monthlyReviews, totals.currentTotal, portfolioActivity]);
+  }, [entries, portfolioActivity, monthlyReviews, totals.currentTotal]);
 
   const annualReviewGroups = useMemo(() => {
-    const grouped = reviewHistory.reduce<
-      Record<string, typeof reviewHistory>
-    >((acc, item) => {
-      const year = item.period.slice(0, 4);
-      acc[year] = [...(acc[year] || []), item];
-      return acc;
-    }, {});
+    const grouped = reviewHistory.reduce<Record<string, typeof reviewHistory>>(
+      (acc, item) => {
+        const year = item.period.slice(0, 4);
+        acc[year] = [...(acc[year] || []), item];
+        return acc;
+      },
+      {},
+    );
 
     return Object.entries(grouped)
       .map(([year, months]) => {
@@ -891,21 +1033,24 @@ export default function Portfolio() {
         ? String(review.contributionsOverride)
         : "",
     );
-    setReviewNotes(review?.notes || "");
+    setReviewWithdrawalsValue(
+      typeof review?.withdrawalsOverride === "number"
+        ? String(review.withdrawalsOverride)
+        : "",
+    );
     setIsReviewDirty(false);
     setIsNewPositionsOpen(false);
     setIsReviewEditModalOpen(false);
     setExpandedReviewYear(null);
   }, [monthlyReviews, selectedPeriod]);
 
-  const markReviewDirty = () => {
-    setIsReviewDirty(true);
-  };
+  const markReviewDirty = () => setIsReviewDirty(true);
 
   const handleSaveReviewChanges = () => {
     const opening = parseOptionalNumber(reviewOpeningValue);
     const closing = parseOptionalNumber(reviewClosingValue);
-    const contributions = parseOptionalNumber(reviewContributionsValue);
+    const deposits = parseOptionalNumber(reviewContributionsValue);
+    const withdrawals = parseOptionalNumber(reviewWithdrawalsValue);
 
     setMonthlyReviews((prev) => ({
       ...prev,
@@ -913,13 +1058,47 @@ export default function Portfolio() {
         period: selectedPeriod,
         openingValue: opening ?? autoOpeningValue,
         closingValue: closing ?? autoClosingValue,
-        contributionsOverride: contributions ?? undefined,
-        notes: reviewNotes.trim() || undefined,
+        contributionsOverride: deposits ?? undefined,
+        withdrawalsOverride: withdrawals ?? undefined,
         updatedAt: new Date().toISOString(),
       },
     }));
 
     setIsReviewDirty(false);
+  };
+
+  const addPortfolioCashMovement = (
+    movement: Omit<PortfolioCashMovement, "id" | "createdAt">,
+  ) => {
+    const now = new Date().toISOString();
+    const id = generateId();
+
+    setPortfolioCashMovements((prev) => [
+      {
+        id,
+        createdAt: now,
+        ...movement,
+      },
+      ...prev,
+    ]);
+
+    return id;
+  };
+
+  const removePortfolioCashMovementsBySource = (sourceActivityId: string) => {
+    setPortfolioCashMovements((prev) =>
+      prev.filter((movement) => movement.sourceActivityId !== sourceActivityId),
+    );
+  };
+
+  const removePortfolioCashMovementByInvestmentEntry = (
+    investmentEntryId: string,
+  ) => {
+    setPortfolioCashMovements((prev) =>
+      prev.filter(
+        (movement) => movement.investmentEntryId !== investmentEntryId,
+      ),
+    );
   };
 
   const resetAssetForm = () => {
@@ -930,6 +1109,7 @@ export default function Portfolio() {
     setTicker("");
     setNotes("");
     setDate(getTodayDate());
+    setAssetFundingSource("external");
     setEditingEntryId(null);
     setError("");
   };
@@ -951,6 +1131,7 @@ export default function Portfolio() {
     setTicker(entry.ticker || "");
     setNotes(entry.notes || "");
     setDate(entry.date);
+    setAssetFundingSource(entry.fundingSource || "external");
     setEditingEntryId(entry.id);
     setError("");
     setIsAssetModalOpen(true);
@@ -959,6 +1140,81 @@ export default function Portfolio() {
   const closeAssetModal = () => {
     setIsAssetModalOpen(false);
     resetAssetForm();
+  };
+
+  const createInvestmentEntry = ({
+    cleanName,
+    assetType,
+    amountNumber,
+    cleanTicker,
+    entryDate,
+    entryNotes,
+    fundingSource,
+    sourceActivityId,
+    currentValueInput,
+  }: {
+    cleanName: string;
+    assetType: AssetType;
+    amountNumber: number;
+    cleanTicker?: string;
+    entryDate: string;
+    entryNotes?: string;
+    fundingSource: InvestmentFundingSource;
+    sourceActivityId?: string;
+    currentValueInput?: number;
+  }) => {
+    const now = new Date().toISOString();
+    const newEntry: InvestmentEntry = {
+      id: generateId(),
+      name: cleanName,
+      type: assetType,
+      amount: amountNumber,
+      ticker: cleanTicker,
+      notes: entryNotes,
+      date: entryDate,
+      accountId: "main",
+      createdAt: now,
+      updatedAt: now,
+      fundingSource,
+      sourceActivityId,
+    };
+
+    setEntries((prev) => [newEntry, ...prev]);
+
+    const key = getHoldingKey(cleanName, cleanTicker);
+    setClosedHoldingKeys((prev) =>
+      prev.filter((closedKey) => closedKey !== key),
+    );
+
+    if (typeof currentValueInput === "number") {
+      setHoldingValues((prev) => ({
+        ...prev,
+        [key]: currentValueInput,
+      }));
+    }
+
+    if (fundingSource === "portfolio_cash") {
+      addPortfolioCashMovement({
+        type: "buy_from_cash",
+        amount: amountNumber,
+        date: entryDate,
+        investmentEntryId: newEntry.id,
+        notes: `Bought ${cleanTicker || cleanName}`,
+      });
+    }
+
+    if (fundingSource === "reallocation" && sourceActivityId) {
+      addPortfolioCashMovement({
+        type: "reallocation_buy",
+        amount: amountNumber,
+        date: entryDate,
+        sourceActivityId,
+        investmentEntryId: newEntry.id,
+        notes: `Reallocated to ${cleanTicker || cleanName}`,
+      });
+    }
+
+    return newEntry;
   };
 
   const handleAssetSubmit = () => {
@@ -982,9 +1238,22 @@ export default function Portfolio() {
       return;
     }
 
+    if (
+      assetFundingSource === "portfolio_cash" &&
+      amountNumber > portfolioCashBalance
+    ) {
+      setError("Not enough portfolio cash available.");
+      return;
+    }
+
     const newKey = getHoldingKey(cleanName, cleanTicker);
 
     if (editingEntryId) {
+      const previousEntry = entries.find(
+        (entry) => entry.id === editingEntryId,
+      );
+      removePortfolioCashMovementByInvestmentEntry(editingEntryId);
+
       setEntries((prev) =>
         prev.map((entry) =>
           entry.id === editingEntryId
@@ -996,26 +1265,46 @@ export default function Portfolio() {
                 ticker: cleanTicker,
                 notes: notes.trim() || undefined,
                 date,
+                fundingSource: assetFundingSource,
                 updatedAt: now,
               }
             : entry,
         ),
       );
-    } else {
-      const newEntry: InvestmentEntry = {
-        id: generateId(),
-        name: cleanName,
-        type,
-        amount: amountNumber,
-        ticker: cleanTicker,
-        notes: notes.trim() || undefined,
-        date,
-        accountId: "main",
-        createdAt: now,
-        updatedAt: now,
-      };
 
-      setEntries((prev) => [newEntry, ...prev]);
+      if (assetFundingSource === "portfolio_cash") {
+        addPortfolioCashMovement({
+          type: "buy_from_cash",
+          amount: amountNumber,
+          date,
+          investmentEntryId: editingEntryId,
+          notes: `Bought ${cleanTicker || cleanName}`,
+        });
+      }
+
+      if (previousEntry) {
+        const oldKey = getHoldingKey(previousEntry.name, previousEntry.ticker);
+        if (oldKey !== newKey) {
+          setHoldingValues((prev) => {
+            const next = { ...prev };
+            delete next[oldKey];
+            return next;
+          });
+        }
+      }
+    } else {
+      createInvestmentEntry({
+        cleanName,
+        assetType: type,
+        amountNumber,
+        cleanTicker,
+        entryDate: date,
+        entryNotes: notes.trim() || undefined,
+        fundingSource: assetFundingSource,
+        currentValueInput: currentValue.trim()
+          ? Number(currentValue)
+          : undefined,
+      });
     }
 
     setClosedHoldingKeys((prev) => prev.filter((key) => key !== newKey));
@@ -1028,10 +1317,7 @@ export default function Portfolio() {
         return;
       }
 
-      setHoldingValues((prev) => ({
-        ...prev,
-        [newKey]: currentValueNumber,
-      }));
+      setHoldingValues((prev) => ({ ...prev, [newKey]: currentValueNumber }));
     }
 
     closeAssetModal();
@@ -1044,7 +1330,7 @@ export default function Portfolio() {
 
   const handlePermanentDeleteEntry = () => {
     if (!editingEntryId) return;
-
+    removePortfolioCashMovementByInvestmentEntry(editingEntryId);
     setEntries((prev) => prev.filter((entry) => entry.id !== editingEntryId));
     setIsDeleteConfirmOpen(false);
     closeAssetModal();
@@ -1066,6 +1352,7 @@ export default function Portfolio() {
     setSellAmount(String(holding.currentValue));
     setSellDate(getTodayDate());
     setSellNotes("");
+    setSellDestination("portfolio_cash");
     setIsSellOpen(true);
   };
 
@@ -1107,9 +1394,9 @@ export default function Portfolio() {
 
   const openInvestMore = () => {
     if (!selectedHolding) return;
-
     setInvestMoreAmount("");
     setInvestMoreDate(getTodayDate());
+    setInvestMoreFundingSource("external");
     setError("");
     setIsInvestMoreOpen(true);
   };
@@ -1118,16 +1405,21 @@ export default function Portfolio() {
     setIsInvestMoreOpen(false);
     setInvestMoreAmount("");
     setInvestMoreDate(getTodayDate());
+    setInvestMoreFundingSource("external");
     setError("");
   };
 
   const openSellPosition = () => {
     if (!selectedHolding) return;
-
     setEditingSellId(null);
     setSellAmount(String(selectedHolding.currentValue));
     setSellDate(getTodayDate());
     setSellNotes("");
+    setSellDestination("portfolio_cash");
+    setReallocateName("");
+    setReallocateType("stock");
+    setReallocateTicker("");
+    setReallocateAmount(String(selectedHolding.currentValue));
     setError("");
     setIsSellOpen(true);
   };
@@ -1138,6 +1430,18 @@ export default function Portfolio() {
     setSellAmount(String(activity.amount));
     setSellDate(activity.date);
     setSellNotes(activity.notes || "");
+    setSellDestination(activity.cashDestination || "portfolio_cash");
+
+    const linkedBuy = activity.linkedBuyEntryId
+      ? entries.find((entry) => entry.id === activity.linkedBuyEntryId)
+      : null;
+    setReallocateName(linkedBuy?.name || "");
+    setReallocateType(linkedBuy?.type || "stock");
+    setReallocateTicker(linkedBuy?.ticker || "");
+    setReallocateAmount(
+      linkedBuy ? String(linkedBuy.amount) : String(activity.amount),
+    );
+
     setError("");
     setIsSellOpen(true);
   };
@@ -1148,19 +1452,34 @@ export default function Portfolio() {
     setSellAmount("");
     setSellDate(getTodayDate());
     setSellNotes("");
+    setSellDestination("portfolio_cash");
+    setReallocateName("");
+    setReallocateType("stock");
+    setReallocateTicker("");
+    setReallocateAmount("");
     setError("");
+  };
+
+  const removeSellSideEffects = (activity: PortfolioActivityEntry) => {
+    removeSellProceedsFromCashFlow({
+      cashEntryId: activity.cashEntryId,
+      portfolioActivityId: activity.id,
+    });
+
+    removePortfolioCashMovementsBySource(activity.id);
+
+    if (activity.linkedBuyEntryId) {
+      setEntries((prev) =>
+        prev.filter((entry) => entry.id !== activity.linkedBuyEntryId),
+      );
+      removePortfolioCashMovementByInvestmentEntry(activity.linkedBuyEntryId);
+    }
   };
 
   const cancelSellActivity = () => {
     if (!selectedSellActivity) return;
 
-    removeSellProceedsFromCashFlow({
-      cashEntryId: selectedSellActivity.cashEntryId,
-      portfolioActivityId: selectedSellActivity.id,
-      description: `Sold ${selectedSellActivity.ticker || selectedSellActivity.name}`,
-      amount: selectedSellActivity.amount,
-      date: selectedSellActivity.date,
-    });
+    removeSellSideEffects(selectedSellActivity);
 
     setPortfolioActivity((prev) =>
       prev.filter((activity) => activity.id !== selectedSellActivity.id),
@@ -1169,7 +1488,8 @@ export default function Portfolio() {
     setHoldingValues((prev) => ({
       ...prev,
       [selectedSellActivity.holdingKey]:
-        selectedSellActivity.previousCurrentValue ?? selectedSellActivity.amount,
+        selectedSellActivity.previousCurrentValue ??
+        selectedSellActivity.amount,
     }));
 
     setClosedHoldingKeys((prev) =>
@@ -1179,19 +1499,93 @@ export default function Portfolio() {
     closeSellPosition();
   };
 
+  const applySellSideEffects = ({
+    activity,
+    amountNumber,
+    dateValue,
+    now,
+  }: {
+    activity: PortfolioActivityEntry;
+    amountNumber: number;
+    dateValue: string;
+    now: string;
+  }) => {
+    let cashEntryId: string | undefined;
+    let linkedBuyEntryId: string | undefined;
+
+    if (activity.cashDestination === "personal_cash") {
+      cashEntryId = upsertSellProceedsToCashFlow({
+        cashEntryId: activity.cashEntryId,
+        portfolioActivityId: activity.id,
+        name: activity.name,
+        ticker: activity.ticker,
+        amount: amountNumber,
+        date: dateValue,
+        now,
+      });
+    }
+
+    if (activity.cashDestination === "portfolio_cash") {
+      addPortfolioCashMovement({
+        type: "sell_proceeds",
+        amount: amountNumber,
+        date: dateValue,
+        sourceActivityId: activity.id,
+        notes: `Sold ${activity.ticker || activity.name}`,
+      });
+    }
+
+    if (activity.cashDestination === "reallocate") {
+      const cleanName = reallocateName.trim();
+      const cleanTicker = normalizeTicker(reallocateTicker);
+      const reallocateAmountNumber = Number(reallocateAmount || amountNumber);
+
+      if (
+        !cleanName ||
+        Number.isNaN(reallocateAmountNumber) ||
+        reallocateAmountNumber <= 0
+      ) {
+        throw new Error("Please add a valid reallocation target.");
+      }
+
+      addPortfolioCashMovement({
+        type: "sell_proceeds",
+        amount: amountNumber,
+        date: dateValue,
+        sourceActivityId: activity.id,
+        notes: `Sold ${activity.ticker || activity.name}`,
+      });
+
+      const buyEntry = createInvestmentEntry({
+        cleanName,
+        assetType: reallocateType,
+        amountNumber: Math.min(reallocateAmountNumber, amountNumber),
+        cleanTicker,
+        entryDate: dateValue,
+        fundingSource: "reallocation",
+        sourceActivityId: activity.id,
+        currentValueInput: Math.min(reallocateAmountNumber, amountNumber),
+      });
+      linkedBuyEntryId = buyEntry.id;
+    }
+
+    return { cashEntryId, linkedBuyEntryId };
+  };
+
   const handleSellPosition = () => {
     const activeSell = selectedSellActivity;
     const activeHolding = selectedHolding;
-
     if (!activeHolding && !activeSell) return;
 
     const parsedSellAmount = Number(sellAmount);
-
-    if (!sellAmount || Number.isNaN(parsedSellAmount) || parsedSellAmount <= 0) {
+    if (
+      !sellAmount ||
+      Number.isNaN(parsedSellAmount) ||
+      parsedSellAmount <= 0
+    ) {
       setError("Please enter a valid sell amount.");
       return;
     }
-
     if (!sellDate) {
       setError("Please select a sell date.");
       return;
@@ -1199,155 +1593,172 @@ export default function Portfolio() {
 
     const now = new Date().toISOString();
 
-    if (activeSell) {
-      const previousCurrentValue =
-        activeSell.previousCurrentValue ?? activeHolding?.currentValue ?? activeSell.amount;
-      const safeSellAmount = Math.min(parsedSellAmount, previousCurrentValue);
-      const closesPosition = safeSellAmount >= previousCurrentValue;
-      const soldRatio =
-        previousCurrentValue > 0 ? Math.min(safeSellAmount / previousCurrentValue, 1) : 1;
-      const estimatedInvestedAtSale =
-        (activeHolding?.invested ?? activeSell.investedAtSale ?? safeSellAmount) * soldRatio;
-      const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
+    try {
+      if (activeSell) {
+        removeSellSideEffects(activeSell);
 
-      const cashEntryId = upsertSellProceedsToCashFlow({
-        cashEntryId: activeSell.cashEntryId,
-        portfolioActivityId: activeSell.id,
-        name: activeSell.name,
-        ticker: activeSell.ticker,
+        const previousCurrentValue =
+          activeSell.previousCurrentValue ??
+          activeHolding?.currentValue ??
+          activeSell.amount;
+        const safeSellAmount = Math.min(parsedSellAmount, previousCurrentValue);
+        const closesPosition = safeSellAmount >= previousCurrentValue;
+        const soldRatio =
+          previousCurrentValue > 0
+            ? Math.min(safeSellAmount / previousCurrentValue, 1)
+            : 1;
+        const estimatedInvestedAtSale =
+          (activeHolding?.invested ??
+            activeSell.investedAtSale ??
+            safeSellAmount) * soldRatio;
+        const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
+
+        const nextActivity: PortfolioActivityEntry = {
+          ...activeSell,
+          amount: safeSellAmount,
+          date: sellDate,
+          notes: sellNotes.trim() || undefined,
+          cashDestination: sellDestination,
+          investedAtSale: estimatedInvestedAtSale,
+          realizedProfit,
+          closesPosition,
+          previousCurrentValue,
+          cashEntryId: undefined,
+          linkedBuyEntryId: undefined,
+          updatedAt: now,
+        };
+
+        const sideEffects = applySellSideEffects({
+          activity: nextActivity,
+          amountNumber: safeSellAmount,
+          dateValue: sellDate,
+          now,
+        });
+
+        setPortfolioActivity((prev) =>
+          prev.map((activity) =>
+            activity.id === activeSell.id
+              ? { ...nextActivity, ...sideEffects }
+              : activity,
+          ),
+        );
+
+        setHoldingValues((prev) => ({
+          ...prev,
+          [activeSell.holdingKey]: closesPosition
+            ? 0
+            : Math.max(previousCurrentValue - safeSellAmount, 0),
+        }));
+
+        setClosedHoldingKeys((prev) => {
+          if (closesPosition) {
+            return prev.includes(activeSell.holdingKey)
+              ? prev
+              : [...prev, activeSell.holdingKey];
+          }
+
+          return prev.filter((key) => key !== activeSell.holdingKey);
+        });
+
+        closeSellPosition();
+        return;
+      }
+
+      if (!activeHolding) return;
+
+      const currentHoldingValue = activeHolding.currentValue;
+      const safeSellAmount = Math.min(parsedSellAmount, currentHoldingValue);
+      const closesPosition = safeSellAmount >= currentHoldingValue;
+      const soldRatio =
+        currentHoldingValue > 0
+          ? Math.min(safeSellAmount / currentHoldingValue, 1)
+          : 1;
+      const estimatedInvestedAtSale = activeHolding.invested * soldRatio;
+      const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
+      const activityId = generateId();
+
+      const baseActivity: PortfolioActivityEntry = {
+        id: activityId,
+        holdingKey: activeHolding.key,
+        name: activeHolding.name,
+        type: activeHolding.type,
+        activityType: "sell",
         amount: safeSellAmount,
         date: sellDate,
+        ticker: activeHolding.ticker,
+        notes: sellNotes.trim() || undefined,
+        cashDestination: sellDestination,
+        investedAtSale: estimatedInvestedAtSale,
+        realizedProfit,
+        closesPosition,
+        previousCurrentValue: currentHoldingValue,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const sideEffects = applySellSideEffects({
+        activity: baseActivity,
+        amountNumber: safeSellAmount,
+        dateValue: sellDate,
         now,
       });
 
-      setPortfolioActivity((prev) =>
-        prev.map((activity) =>
-          activity.id === activeSell.id
-            ? {
-                ...activity,
-                amount: safeSellAmount,
-                date: sellDate,
-                notes: sellNotes.trim() || undefined,
-                investedAtSale: estimatedInvestedAtSale,
-                realizedProfit,
-                closesPosition,
-                previousCurrentValue,
-                cashEntryId,
-                updatedAt: now,
-              }
-            : activity,
-        ),
-      );
+      setPortfolioActivity((prev) => [
+        { ...baseActivity, ...sideEffects },
+        ...prev,
+      ]);
 
       setHoldingValues((prev) => ({
         ...prev,
-        [activeSell.holdingKey]: closesPosition
+        [activeHolding.key]: closesPosition
           ? 0
-          : Math.max(previousCurrentValue - safeSellAmount, 0),
+          : Math.max(currentHoldingValue - safeSellAmount, 0),
       }));
 
-      setClosedHoldingKeys((prev) => {
-        if (closesPosition) {
-          return prev.includes(activeSell.holdingKey)
+      if (closesPosition) {
+        setClosedHoldingKeys((prev) =>
+          prev.includes(activeHolding.key)
             ? prev
-            : [...prev, activeSell.holdingKey];
-        }
-
-        return prev.filter((key) => key !== activeSell.holdingKey);
-      });
+            : [...prev, activeHolding.key],
+        );
+      }
 
       closeSellPosition();
-      return;
+      closeHoldingDetail();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not save sale.");
     }
-
-    if (!activeHolding) return;
-
-    const currentHoldingValue = activeHolding.currentValue;
-    const safeSellAmount = Math.min(parsedSellAmount, currentHoldingValue);
-    const closesPosition = safeSellAmount >= currentHoldingValue;
-    const soldRatio =
-      currentHoldingValue > 0 ? Math.min(safeSellAmount / currentHoldingValue, 1) : 1;
-    const estimatedInvestedAtSale = activeHolding.invested * soldRatio;
-    const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
-    const activityId = generateId();
-
-    const cashEntryId = upsertSellProceedsToCashFlow({
-      portfolioActivityId: activityId,
-      name: activeHolding.name,
-      ticker: activeHolding.ticker,
-      amount: safeSellAmount,
-      date: sellDate,
-      now,
-    });
-
-    const sellActivity: PortfolioActivityEntry = {
-      id: activityId,
-      holdingKey: activeHolding.key,
-      name: activeHolding.name,
-      type: activeHolding.type,
-      activityType: "sell",
-      amount: safeSellAmount,
-      date: sellDate,
-      ticker: activeHolding.ticker,
-      notes: sellNotes.trim() || undefined,
-      investedAtSale: estimatedInvestedAtSale,
-      realizedProfit,
-      closesPosition,
-      previousCurrentValue: currentHoldingValue,
-      cashEntryId,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setPortfolioActivity((prev) => [sellActivity, ...prev]);
-
-    setHoldingValues((prev) => ({
-      ...prev,
-      [activeHolding.key]: closesPosition
-        ? 0
-        : Math.max(currentHoldingValue - safeSellAmount, 0),
-    }));
-
-    if (closesPosition) {
-      setClosedHoldingKeys((prev) =>
-        prev.includes(activeHolding.key) ? prev : [...prev, activeHolding.key],
-      );
-    }
-
-    closeSellPosition();
-    closeHoldingDetail();
   };
 
   const handleInvestMore = () => {
     if (!selectedHolding) return;
-
     const parsedAmount = Number(investMoreAmount);
 
     if (!investMoreAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
       setError("Please enter a valid amount.");
       return;
     }
-
     if (!investMoreDate) {
       setError("Please select a date.");
       return;
     }
+    if (
+      investMoreFundingSource === "portfolio_cash" &&
+      parsedAmount > portfolioCashBalance
+    ) {
+      setError("Not enough portfolio cash available.");
+      return;
+    }
 
-    const now = new Date().toISOString();
+    createInvestmentEntry({
+      cleanName: selectedHolding.name,
+      assetType: selectedHolding.type,
+      amountNumber: parsedAmount,
+      cleanTicker: selectedHolding.ticker,
+      entryDate: investMoreDate,
+      fundingSource: investMoreFundingSource,
+    });
 
-    const newEntry: InvestmentEntry = {
-      id: generateId(),
-      name: selectedHolding.name,
-      type: selectedHolding.type,
-      amount: parsedAmount,
-      ticker: selectedHolding.ticker,
-      date: investMoreDate,
-      accountId: "main",
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setEntries((prev) => [newEntry, ...prev]);
     setClosedHoldingKeys((prev) =>
       prev.filter((key) => key !== selectedHolding.key),
     );
@@ -1360,7 +1771,6 @@ export default function Portfolio() {
       openCreateAssetModal();
       return;
     }
-
     setActiveTab(tab);
   };
 
@@ -1394,6 +1804,11 @@ export default function Portfolio() {
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(totals.currentTotal, currency)}
             </p>
+            {portfolioCashBalance > 0 && (
+              <p className="text-zinc-500 text-sm mt-2">
+                Portfolio cash {formatCurrency(portfolioCashBalance, currency)}
+              </p>
+            )}
           </section>
 
           <nav className="mb-5">
@@ -1420,7 +1835,6 @@ export default function Portfolio() {
                           : "text-zinc-500/80"
                       }`}
                     />
-
                     <span
                       className={`text-[11px] font-medium transition-colors duration-200 ${
                         isActive
@@ -1440,7 +1854,7 @@ export default function Portfolio() {
 
           {activeTab === "overview" && (
             <section className="mb-24 space-y-5">
-              {groups.length === 0 ? (
+              {groups.length === 0 && portfolioCashBalance <= 0 ? (
                 <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
                   <p className="text-zinc-200 text-sm">No holdings yet.</p>
                   <p className="text-zinc-600 text-sm mt-2">
@@ -1458,7 +1872,6 @@ export default function Portfolio() {
                         How your portfolio is distributed.
                       </p>
                     </div>
-
                     <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5 space-y-4">
                       {groups.map((group) => (
                         <div key={group.type}>
@@ -1470,7 +1883,6 @@ export default function Portfolio() {
                               {group.allocationPct.toFixed(0)}%
                             </span>
                           </div>
-
                           <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-[var(--accent)]/70"
@@ -1481,6 +1893,37 @@ export default function Portfolio() {
                           </div>
                         </div>
                       ))}
+                      {portfolioCashBalance > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between gap-4 mb-2">
+                            <span className="text-zinc-300 text-sm">
+                              Portfolio Cash
+                            </span>
+                            <span className="text-white text-sm font-medium">
+                              {totals.currentTotal > 0
+                                ? `${((portfolioCashBalance / totals.currentTotal) * 100).toFixed(0)}%`
+                                : "0%"}
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-white/30"
+                              style={{
+                                width: `${
+                                  totals.currentTotal > 0
+                                    ? Math.min(
+                                        (portfolioCashBalance /
+                                          totals.currentTotal) *
+                                          100,
+                                        100,
+                                      )
+                                    : 0
+                                }%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1490,7 +1933,6 @@ export default function Portfolio() {
                         Quick summary
                       </p>
                     </div>
-
                     <div className="grid gap-2 text-sm">
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-zinc-500">Holdings</span>
@@ -1498,20 +1940,26 @@ export default function Portfolio() {
                           {activeHoldings.length}
                         </span>
                       </div>
-
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-zinc-500">Portfolio Cash</span>
+                        <span className="text-white font-medium">
+                          {formatCurrency(portfolioCashBalance, currency)}
+                        </span>
+                      </div>
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-zinc-500">Invested</span>
                         <span className="text-white font-medium">
                           {formatCurrency(totals.investedTotal, currency)}
                         </span>
                       </div>
-
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-zinc-500">Largest</span>
                         <span className="text-white font-medium text-right">
                           {topAllocation
                             ? `${topAllocation.label} (${topAllocation.allocationPct.toFixed(0)}%)`
-                            : "None"}
+                            : portfolioCashBalance > 0
+                              ? "Portfolio Cash"
+                              : "None"}
                         </span>
                       </div>
                     </div>
@@ -1535,11 +1983,9 @@ export default function Portfolio() {
                   <p className="text-zinc-600 text-xs mb-3">
                     Total Holdings · {activeHoldings.length}
                   </p>
-
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
                     {groups.map((group, groupIndex) => {
                       const isExpanded = expandedGroup === group.type;
-
                       return (
                         <div
                           key={group.type}
@@ -1562,7 +2008,6 @@ export default function Portfolio() {
                               <p className="text-zinc-200 font-medium">
                                 {group.label}
                               </p>
-
                               {!isExpanded && (
                                 <p className="text-xs text-zinc-600 mt-1">
                                   {group.holdings.length} holding
@@ -1570,27 +2015,20 @@ export default function Portfolio() {
                                 </p>
                               )}
                             </div>
-
                             {!isExpanded && (
                               <div className="text-right shrink-0">
                                 <p className="text-zinc-300 text-sm font-medium">
                                   {formatCurrency(group.currentValue, currency)}
                                 </p>
                                 <p
-                                  className={`text-xs mt-1 ${
-                                    group.profitPct >= 0
-                                      ? "text-green-500"
-                                      : "text-red-500"
-                                  }`}
+                                  className={`text-xs mt-1 ${group.profitPct >= 0 ? "text-green-500" : "text-red-500"}`}
                                 >
                                   {group.profitPct >= 0 ? "+" : ""}
                                   {group.profitPct.toFixed(1)}%
                                 </p>
                               </div>
                             )}
-
                           </button>
-
                           {isExpanded && (
                             <div className="px-5 pb-5">
                               <div className="space-y-1">
@@ -1606,7 +2044,6 @@ export default function Portfolio() {
                                         {holding.name}
                                       </p>
                                     </div>
-
                                     <div className="text-right shrink-0">
                                       <p className="text-zinc-300 text-sm font-medium">
                                         {formatCurrency(
@@ -1615,11 +2052,7 @@ export default function Portfolio() {
                                         )}
                                       </p>
                                       <p
-                                        className={`text-xs mt-1 ${
-                                          holding.profitPct >= 0
-                                            ? "text-green-500"
-                                            : "text-red-500"
-                                        }`}
+                                        className={`text-xs mt-1 ${holding.profitPct >= 0 ? "text-green-500" : "text-red-500"}`}
                                       >
                                         {holding.profitPct >= 0 ? "+" : ""}
                                         {holding.profitPct.toFixed(1)}%
@@ -1642,8 +2075,7 @@ export default function Portfolio() {
           {activeTab === "activity" && (
             <section className="mb-24">
               <div className="mb-3">
-                <p className="text-zinc-500 text-sm mb-1">Invested in</p>
-
+                <p className="text-zinc-500 text-sm mb-1">Activity in</p>
                 <div className="relative inline-block">
                   <select
                     value={selectedPeriod}
@@ -1656,23 +2088,35 @@ export default function Portfolio() {
                       </option>
                     ))}
                   </select>
-
                   <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
                     ⌄
                   </span>
                 </div>
               </div>
-
-              <div className="mb-5">
-                <p className="text-3xl font-semibold tracking-tight text-white">
-                  {formatCurrency(periodInvested, currency)}
-                </p>
+              <div className="mb-5 grid gap-2 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-zinc-500">External deposits</span>
+                  <span className="text-white font-medium">
+                    {formatCurrency(periodExternalDeposits, currency)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-zinc-500">Reallocated</span>
+                  <span className="text-white font-medium">
+                    {formatCurrency(periodReallocated, currency)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-zinc-500">Withdrawn</span>
+                  <span className="text-white font-medium">
+                    {formatCurrency(periodWithdrawals, currency)}
+                  </span>
+                </div>
               </div>
-
               {periodActivityEntries.length === 0 ? (
                 <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
                   <p className="text-zinc-300 text-sm">
-                    No investments added in this period.
+                    No portfolio activity in this period.
                   </p>
                   <p className="text-zinc-600 text-sm mt-1">
                     Select another month or add a new asset.
@@ -1686,13 +2130,12 @@ export default function Portfolio() {
                     className="w-full flex items-center justify-between text-left"
                   >
                     <p className="text-white text-sm font-medium">
-                      Investment entries
+                      Portfolio activity
                     </p>
                     <span className="text-zinc-500 text-lg">
                       {isActivityListOpen ? "⌃" : "⌄"}
                     </span>
                   </button>
-
                   {isActivityListOpen && (
                     <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
                       {periodActivityEntries.map((entry, index) => (
@@ -1701,11 +2144,16 @@ export default function Portfolio() {
                           type="button"
                           onClick={() => {
                             if (entry.kind === "buy") {
-                              openEditEntryModal(entry.source as InvestmentEntry);
+                              openEditEntryModal(
+                                entry.source as InvestmentEntry,
+                              );
                               return;
                             }
-
-                            openEditSellActivity(entry.source as PortfolioActivityEntry);
+                            if (entry.kind === "sell") {
+                              openEditSellActivity(
+                                entry.source as PortfolioActivityEntry,
+                              );
+                            }
                           }}
                           className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
                             index !== periodActivityEntries.length - 1
@@ -1716,7 +2164,11 @@ export default function Portfolio() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-zinc-200 truncate">
-                                {entry.kind === "sell" ? "Sold " : "Bought "}
+                                {entry.kind === "sell"
+                                  ? "Sold "
+                                  : entry.kind === "cash"
+                                    ? ""
+                                    : "Bought "}
                                 {entry.name}
                               </p>
                               {entry.ticker && (
@@ -1725,19 +2177,17 @@ export default function Portfolio() {
                                 </span>
                               )}
                             </div>
-
                             <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 flex-wrap">
-                              <span>{formatAssetType(entry.type)}</span>
+                              <span>
+                                {entry.kind === "cash"
+                                  ? "Portfolio Cash"
+                                  : formatAssetType(entry.type)}
+                              </span>
                             </div>
                           </div>
-
                           <div className="text-right shrink-0">
                             <p
-                              className={`text-sm font-medium ${
-                                entry.kind === "sell"
-                                  ? "text-green-500"
-                                  : "text-zinc-300"
-                              }`}
+                              className={`text-sm font-medium ${entry.kind === "sell" ? "text-green-500" : "text-zinc-300"}`}
                             >
                               {entry.kind === "sell" ? "+" : ""}
                               {formatCurrency(entry.amount, currency)}
@@ -1758,7 +2208,6 @@ export default function Portfolio() {
                 <p className="text-white text-sm font-medium mb-1">
                   Monthly Review
                 </p>
-
                 <div className="relative inline-block">
                   <select
                     value={selectedPeriod}
@@ -1771,7 +2220,6 @@ export default function Portfolio() {
                       </option>
                     ))}
                   </select>
-
                   <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[var(--accent)] text-sm">
                     ⌄
                   </span>
@@ -1781,24 +2229,15 @@ export default function Portfolio() {
               <div className="mb-7">
                 <p className="text-zinc-500 text-sm mb-2">Real Return</p>
                 <p
-                  className={`text-5xl font-semibold tracking-tight ${
-                    realReturn === null
-                      ? "text-white"
-                      : realReturn >= 0
-                        ? "text-green-500"
-                        : "text-red-500"
-                  }`}
+                  className={`text-5xl font-semibold tracking-tight ${realReturn === null ? "text-white" : realReturn >= 0 ? "text-green-500" : "text-red-500"}`}
                 >
                   {realReturn === null ? "—" : formatSignedPercent(realReturn)}
                 </p>
                 <p
-                  className={`text-sm mt-3 ${
-                    realProfit >= 0 ? "text-green-500" : "text-red-500"
-                  }`}
+                  className={`text-sm mt-3 ${realProfit >= 0 ? "text-green-500" : "text-red-500"}`}
                 >
                   {formatSignedCurrency(realProfit, currency)} real profit
                 </p>
-
                 {displayedReviewOpening === 0 && (
                   <p className="text-zinc-600 text-xs mt-2">
                     Initial month · return starts after the first full month.
@@ -1813,7 +2252,6 @@ export default function Portfolio() {
                   Review Summary
                 </p>
               </div>
-
               <div className="mb-3 grid gap-3 text-sm">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-500">Opening Value</span>
@@ -1821,53 +2259,57 @@ export default function Portfolio() {
                     {formatCurrency(displayedReviewOpening, currency)}
                   </span>
                 </div>
-
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-zinc-500">Contributions</span>
+                  <span className="text-zinc-500">Deposits</span>
                   <span className="text-white font-medium">
-                    {formatCurrency(displayedReviewContributions, currency)}
+                    {formatCurrency(displayedReviewDeposits, currency)}
                   </span>
                 </div>
-
-                {periodSellProceeds > 0 && (
+                {periodReallocated > 0 && (
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-zinc-500">Sold</span>
-                    <span className="text-green-500 font-medium">
-                      +{formatCurrency(periodSellProceeds, currency)}
+                    <span className="text-zinc-500">Reallocated</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(periodReallocated, currency)}
                     </span>
                   </div>
                 )}
-
+                {periodPortfolioCashProceeds > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">
+                      Sold to portfolio cash
+                    </span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(periodPortfolioCashProceeds, currency)}
+                    </span>
+                  </div>
+                )}
+                {displayedReviewWithdrawals > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Withdrawn</span>
+                    <span className="text-white font-medium">
+                      {formatCurrency(displayedReviewWithdrawals, currency)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-500">Closing Value</span>
                   <span className="text-white font-medium">
                     {formatCurrency(displayedReviewClosing, currency)}
                   </span>
                 </div>
-
                 <div className="h-px bg-white/5 my-1" />
-
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-300">Real Profit</span>
                   <span
-                    className={`font-medium ${
-                      realProfit >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
+                    className={`font-medium ${realProfit >= 0 ? "text-green-500" : "text-red-500"}`}
                   >
                     {formatSignedCurrency(realProfit, currency)}
                   </span>
                 </div>
-
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-300">Real Return</span>
                   <span
-                    className={`font-medium ${
-                      realReturn === null
-                        ? "text-zinc-500"
-                        : realReturn >= 0
-                          ? "text-green-500"
-                          : "text-red-500"
-                    }`}
+                    className={`font-medium ${realReturn === null ? "text-zinc-500" : realReturn >= 0 ? "text-green-500" : "text-red-500"}`}
                   >
                     {realReturn === null
                       ? "—"
@@ -1887,16 +2329,14 @@ export default function Portfolio() {
               {annualReviewGroups.length > 0 && (
                 <>
                   <div className="h-px bg-white/5 mb-6" />
-
                   <div className="mb-7">
                     <p className="text-zinc-500 text-xs uppercase tracking-[0.18em] mb-3">
                       Annual Review
                     </p>
-
                     <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
                       {annualReviewGroups.map((yearGroup, yearIndex) => {
-                        const isExpanded = expandedReviewYear === yearGroup.year;
-
+                        const isExpanded =
+                          expandedReviewYear === yearGroup.year;
                         return (
                           <div
                             key={yearGroup.year}
@@ -1910,7 +2350,9 @@ export default function Portfolio() {
                               type="button"
                               onClick={() =>
                                 setExpandedReviewYear((prev) =>
-                                  prev === yearGroup.year ? null : yearGroup.year,
+                                  prev === yearGroup.year
+                                    ? null
+                                    : yearGroup.year,
                                 )
                               }
                               className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
@@ -1919,25 +2361,18 @@ export default function Portfolio() {
                                 <p className="text-zinc-200 font-medium">
                                   {yearGroup.year}
                                 </p>
-
                                 {!isExpanded && (
                                   <p className="text-xs text-zinc-600 mt-1">
                                     {yearGroup.months.length} month
-                                    {yearGroup.months.length === 1 ? "" : "s"} tracked
+                                    {yearGroup.months.length === 1 ? "" : "s"}{" "}
+                                    tracked
                                   </p>
                                 )}
                               </div>
-
                               {!isExpanded && (
                                 <div className="text-right shrink-0">
                                   <p
-                                    className={`text-sm font-medium ${
-                                      yearGroup.latestReturnPct === null
-                                        ? "text-zinc-500"
-                                        : yearGroup.latestReturnPct >= 0
-                                          ? "text-green-500"
-                                          : "text-red-500"
-                                    }`}
+                                    className={`text-sm font-medium ${yearGroup.latestReturnPct === null ? "text-zinc-500" : yearGroup.latestReturnPct >= 0 ? "text-green-500" : "text-red-500"}`}
                                   >
                                     {yearGroup.latestReturnPct === null
                                       ? "—"
@@ -1948,7 +2383,6 @@ export default function Portfolio() {
                                 </div>
                               )}
                             </button>
-
                             {isExpanded && (
                               <div className="px-5 pb-5">
                                 <div className="space-y-4">
@@ -1956,7 +2390,9 @@ export default function Portfolio() {
                                     <button
                                       key={item.period}
                                       type="button"
-                                      onClick={() => setSelectedPeriod(item.period)}
+                                      onClick={() =>
+                                        setSelectedPeriod(item.period)
+                                      }
                                       className="w-full text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
                                     >
                                       <div className="flex items-center justify-between gap-4">
@@ -1964,32 +2400,44 @@ export default function Portfolio() {
                                           {formatPeriodLabel(item.period)}
                                         </p>
                                         <span
-                                          className={`font-medium ${
-                                            item.returnPct === null
-                                              ? "text-zinc-500"
-                                              : item.returnPct >= 0
-                                                ? "text-green-500"
-                                                : "text-red-500"
-                                          }`}
+                                          className={`font-medium ${item.returnPct === null ? "text-zinc-500" : item.returnPct >= 0 ? "text-green-500" : "text-red-500"}`}
                                         >
                                           {item.returnPct === null
                                             ? "—"
-                                            : formatSignedPercent(item.returnPct)}
+                                            : formatSignedPercent(
+                                                item.returnPct,
+                                              )}
                                         </span>
                                       </div>
-
                                       <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
-                                        Opening {formatCurrency(item.opening, currency)} ·
-                                        Contributions {" "}
-                                        {formatCurrency(item.contributions, currency)} ·
-                                        Closing {formatCurrency(item.closing, currency)}
-                                        {item.sellProceeds > 0
-                                          ? ` · Sold ${formatCurrency(item.sellProceeds, currency)}`
-                                          : ""}
+                                        Opening{" "}
+                                        {formatCurrency(item.opening, currency)}{" "}
+                                        · Deposits{" "}
+                                        {formatCurrency(
+                                          item.deposits,
+                                          currency,
+                                        )}{" "}
+                                        · Closing{" "}
+                                        {formatCurrency(item.closing, currency)}
                                       </p>
-
                                       <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
-                                        Real Profit {formatSignedCurrency(item.profit, currency)}
+                                        Reallocated{" "}
+                                        {formatCurrency(
+                                          item.reallocated,
+                                          currency,
+                                        )}{" "}
+                                        · Withdrawn{" "}
+                                        {formatCurrency(
+                                          item.withdrawals,
+                                          currency,
+                                        )}
+                                      </p>
+                                      <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
+                                        Real Profit{" "}
+                                        {formatSignedCurrency(
+                                          item.profit,
+                                          currency,
+                                        )}
                                       </p>
                                     </button>
                                   ))}
@@ -2008,7 +2456,6 @@ export default function Portfolio() {
                 contributionGroups.addedThisMonth.length > 0) && (
                 <>
                   <div className="h-px bg-white/5 mb-6" />
-
                   <div className="mb-7">
                     <button
                       type="button"
@@ -2033,7 +2480,6 @@ export default function Portfolio() {
                         {isNewPositionsOpen ? "⌃" : "⌄"}
                       </span>
                     </button>
-
                     {isNewPositionsOpen && (
                       <div className="grid gap-5 mt-4">
                         {contributionGroups.newPositions.length > 0 && (
@@ -2058,7 +2504,6 @@ export default function Portfolio() {
                             ))}
                           </div>
                         )}
-
                         {contributionGroups.addedThisMonth.length > 0 && (
                           <div>
                             <p className="text-zinc-500 text-xs mb-3">
@@ -2091,12 +2536,10 @@ export default function Portfolio() {
                   </div>
                 </>
               )}
-
             </section>
           )}
         </div>
       </main>
-
 
       {isReviewEditModalOpen && (
         <div
@@ -2117,7 +2560,6 @@ export default function Portfolio() {
                     Adjust values if the automatic review needs correction.
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setIsReviewEditModalOpen(false)}
@@ -2126,7 +2568,6 @@ export default function Portfolio() {
                   Close
                 </button>
               </div>
-
               <div className="grid gap-3">
                 <input
                   type="number"
@@ -2140,12 +2581,11 @@ export default function Portfolio() {
                   }}
                   className={fieldClass}
                 />
-
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder={`Contributions · ${formatCurrency(periodInvested, currency)}`}
+                  placeholder={`Deposits · ${formatCurrency(periodExternalDeposits, currency)}`}
                   value={reviewContributionsValue}
                   onChange={(e) => {
                     setReviewContributionsValue(e.target.value);
@@ -2153,7 +2593,18 @@ export default function Portfolio() {
                   }}
                   className={fieldClass}
                 />
-
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={`Withdrawals · ${formatCurrency(periodWithdrawals, currency)}`}
+                  value={reviewWithdrawalsValue}
+                  onChange={(e) => {
+                    setReviewWithdrawalsValue(e.target.value);
+                    markReviewDirty();
+                  }}
+                  className={fieldClass}
+                />
                 <input
                   type="number"
                   min="0"
@@ -2166,7 +2617,6 @@ export default function Portfolio() {
                   }}
                   className={fieldClass}
                 />
-
                 <button
                   type="button"
                   onClick={() => {
@@ -2182,6 +2632,7 @@ export default function Portfolio() {
           </div>
         </div>
       )}
+
       {isAssetModalOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
@@ -2196,7 +2647,6 @@ export default function Portfolio() {
                 <p className="text-white text-sm font-medium">
                   {editingEntryId ? "Edit investment" : "New asset"}
                 </p>
-
                 <button
                   type="button"
                   onClick={closeAssetModal}
@@ -2205,7 +2655,6 @@ export default function Portfolio() {
                   Close
                 </button>
               </div>
-
               <div className="grid gap-3">
                 <input
                   placeholder="Name"
@@ -2213,7 +2662,6 @@ export default function Portfolio() {
                   onChange={(e) => setName(e.target.value)}
                   className={fieldClass}
                 />
-
                 <div>
                   <label className="text-xs text-zinc-500 mb-2 block">
                     Asset type
@@ -2230,14 +2678,12 @@ export default function Portfolio() {
                     ))}
                   </select>
                 </div>
-
                 <input
                   placeholder="Ticker (optional)"
                   value={ticker}
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
                   className={fieldClass}
                 />
-
                 <input
                   placeholder="Invested amount"
                   type="number"
@@ -2247,14 +2693,33 @@ export default function Portfolio() {
                   onChange={(e) => setAmount(e.target.value)}
                   className={fieldClass}
                 />
-
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAssetFundingSource("external")}
+                    className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${assetFundingSource === "external" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                  >
+                    External cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAssetFundingSource("portfolio_cash")}
+                    className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${assetFundingSource === "portfolio_cash" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                  >
+                    Portfolio cash
+                  </button>
+                </div>
+                {assetFundingSource === "portfolio_cash" && (
+                  <p className="text-zinc-600 text-xs">
+                    Available: {formatCurrency(portfolioCashBalance, currency)}
+                  </p>
+                )}
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   className={fieldClass}
                 />
-
                 <input
                   placeholder="Current value (optional)"
                   type="number"
@@ -2264,7 +2729,6 @@ export default function Portfolio() {
                   onChange={(e) => setCurrentValue(e.target.value)}
                   className={fieldClass}
                 />
-
                 <div>
                   <label className="text-xs text-zinc-500 mb-2 block">
                     Notes
@@ -2277,9 +2741,7 @@ export default function Portfolio() {
                     placeholder="Optional notes"
                   />
                 </div>
-
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
-
                 <button
                   type="button"
                   onClick={handleAssetSubmit}
@@ -2287,7 +2749,6 @@ export default function Portfolio() {
                 >
                   {editingEntryId ? "Save investment" : "Add asset"}
                 </button>
-
                 {editingEntryId && (
                   <button
                     type="button"
@@ -2319,7 +2780,6 @@ export default function Portfolio() {
               This removes the investment entry and its history. Use Sell if you
               sold this asset.
             </p>
-
             <div className="grid gap-3">
               <button
                 type="button"
@@ -2328,7 +2788,6 @@ export default function Portfolio() {
               >
                 Cancel
               </button>
-
               <button
                 type="button"
                 onClick={openSellInsteadFromEntry}
@@ -2336,7 +2795,6 @@ export default function Portfolio() {
               >
                 Sell instead
               </button>
-
               <button
                 type="button"
                 onClick={handlePermanentDeleteEntry}
@@ -2361,7 +2819,6 @@ export default function Portfolio() {
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-white text-sm font-medium">Holding detail</p>
-
                 <button
                   type="button"
                   onClick={closeHoldingDetail}
@@ -2370,26 +2827,22 @@ export default function Portfolio() {
                   Close
                 </button>
               </div>
-
               <div className="grid gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-2xl font-semibold tracking-tight">
                       {selectedHolding.name}
                     </h2>
-
                     {selectedHolding.ticker && (
                       <span className="text-xs text-zinc-600 uppercase">
                         {selectedHolding.ticker}
                       </span>
                     )}
                   </div>
-
                   <p className="text-zinc-500 text-sm mt-2">
                     {formatAssetType(selectedHolding.type)}
                   </p>
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
                     <p className="text-zinc-500 text-xs mb-2">Invested</p>
@@ -2397,22 +2850,16 @@ export default function Portfolio() {
                       {formatCurrency(selectedHolding.invested, currency)}
                     </p>
                   </div>
-
                   <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
                     <p className="text-zinc-500 text-xs mb-2">Performance</p>
                     <p
-                      className={`text-sm font-medium ${
-                        selectedHolding.profitPct >= 0
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
+                      className={`text-sm font-medium ${selectedHolding.profitPct >= 0 ? "text-green-500" : "text-red-500"}`}
                     >
                       {selectedHolding.profitPct >= 0 ? "+" : ""}
                       {selectedHolding.profitPct.toFixed(1)}%
                     </p>
                   </div>
                 </div>
-
                 <div>
                   <label className="text-xs text-zinc-500 mb-2 block">
                     Current value
@@ -2426,22 +2873,15 @@ export default function Portfolio() {
                     className={fieldClass}
                   />
                 </div>
-
                 <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
                   <p className="text-zinc-500 text-xs mb-2">Profit / Loss</p>
                   <p
-                    className={`text-sm font-medium ${
-                      selectedHolding.profit >= 0
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
+                    className={`text-sm font-medium ${selectedHolding.profit >= 0 ? "text-green-500" : "text-red-500"}`}
                   >
                     {formatCurrency(selectedHolding.profit, currency)}
                   </p>
                 </div>
-
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
-
                 <button
                   type="button"
                   onClick={openInvestMore}
@@ -2449,7 +2889,6 @@ export default function Portfolio() {
                 >
                   Invest more
                 </button>
-
                 <button
                   type="button"
                   onClick={openSellPosition}
@@ -2457,7 +2896,6 @@ export default function Portfolio() {
                 >
                   Sell / Close position
                 </button>
-
                 <button
                   type="button"
                   onClick={handleSaveHolding}
@@ -2487,10 +2925,9 @@ export default function Portfolio() {
                     {editingSellId ? "Edit sale" : `Sell ${sellModalName}`}
                   </p>
                   <p className="text-zinc-600 text-xs mt-1">
-                    Selling preserves history and records portfolio activity.
+                    Choose where the sale proceeds go.
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={closeSellPosition}
@@ -2499,7 +2936,6 @@ export default function Portfolio() {
                   Close
                 </button>
               </div>
-
               <div className="grid gap-3">
                 <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
                   <p className="text-zinc-500 text-xs mb-2">Current value</p>
@@ -2507,24 +2943,90 @@ export default function Portfolio() {
                     {formatCurrency(sellModalCurrentValue, currency)}
                   </p>
                 </div>
-
                 <input
                   placeholder="Sell amount"
                   type="number"
                   min="0"
                   step="0.01"
                   value={sellAmount}
-                  onChange={(e) => setSellAmount(e.target.value)}
+                  onChange={(e) => {
+                    setSellAmount(e.target.value);
+                    if (!reallocateAmount) setReallocateAmount(e.target.value);
+                  }}
                   className={fieldClass}
                 />
-
                 <input
                   type="date"
                   value={sellDate}
                   onChange={(e) => setSellDate(e.target.value)}
                   className={fieldClass}
                 />
-
+                <div className="grid gap-2">
+                  <p className="text-xs text-zinc-500">Destination</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSellDestination("portfolio_cash")}
+                      className={`rounded-full h-[42px] text-xs border transition-all duration-200 ease-out active:scale-[0.98] ${sellDestination === "portfolio_cash" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                    >
+                      Portfolio cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSellDestination("personal_cash")}
+                      className={`rounded-full h-[42px] text-xs border transition-all duration-200 ease-out active:scale-[0.98] ${sellDestination === "personal_cash" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                    >
+                      Personal cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSellDestination("reallocate")}
+                      className={`rounded-full h-[42px] text-xs border transition-all duration-200 ease-out active:scale-[0.98] ${sellDestination === "reallocate" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                    >
+                      Reallocate
+                    </button>
+                  </div>
+                </div>
+                {sellDestination === "reallocate" && (
+                  <div className="grid gap-3 rounded-[22px] bg-zinc-800/30 border border-white/5 p-3">
+                    <input
+                      placeholder="New or existing asset"
+                      value={reallocateName}
+                      onChange={(e) => setReallocateName(e.target.value)}
+                      className={fieldClass}
+                    />
+                    <select
+                      value={reallocateType}
+                      onChange={(e) =>
+                        setReallocateType(e.target.value as AssetType)
+                      }
+                      className={fieldClass}
+                    >
+                      {assetTypes.map((assetType) => (
+                        <option key={assetType.value} value={assetType.value}>
+                          {assetType.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      placeholder="Ticker (optional)"
+                      value={reallocateTicker}
+                      onChange={(e) =>
+                        setReallocateTicker(e.target.value.toUpperCase())
+                      }
+                      className={fieldClass}
+                    />
+                    <input
+                      placeholder="Amount to reallocate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={reallocateAmount}
+                      onChange={(e) => setReallocateAmount(e.target.value)}
+                      className={fieldClass}
+                    />
+                  </div>
+                )}
                 <textarea
                   value={sellNotes}
                   onChange={(e) => setSellNotes(e.target.value)}
@@ -2532,9 +3034,7 @@ export default function Portfolio() {
                   className="w-full bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
                   placeholder="Optional notes"
                 />
-
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
-
                 <button
                   type="button"
                   onClick={handleSellPosition}
@@ -2542,7 +3042,6 @@ export default function Portfolio() {
                 >
                   {editingSellId ? "Save sale" : "Confirm sale"}
                 </button>
-
                 {editingSellId && (
                   <div className="pt-1">
                     <button
@@ -2553,7 +3052,8 @@ export default function Portfolio() {
                       Delete sale
                     </button>
                     <p className="text-center text-zinc-700 text-[11px] mt-1">
-                      Removes this sale, its cash entry, and its review impact.
+                      Removes this sale, its cash effects, and its review
+                      impact.
                     </p>
                   </div>
                 )}
@@ -2577,7 +3077,6 @@ export default function Portfolio() {
                 <p className="text-white text-sm font-medium">
                   Invest more in {selectedHolding.name}
                 </p>
-
                 <button
                   type="button"
                   onClick={closeInvestMore}
@@ -2586,7 +3085,6 @@ export default function Portfolio() {
                   Close
                 </button>
               </div>
-
               <div className="grid gap-3">
                 <input
                   placeholder="Amount"
@@ -2597,16 +3095,34 @@ export default function Portfolio() {
                   onChange={(e) => setInvestMoreAmount(e.target.value)}
                   className={fieldClass}
                 />
-
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInvestMoreFundingSource("external")}
+                    className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${investMoreFundingSource === "external" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                  >
+                    External cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvestMoreFundingSource("portfolio_cash")}
+                    className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${investMoreFundingSource === "portfolio_cash" ? "bg-[var(--accent)] text-black border-[var(--accent)]" : "bg-zinc-800/80 border-white/5 text-zinc-400"}`}
+                  >
+                    Portfolio cash
+                  </button>
+                </div>
+                {investMoreFundingSource === "portfolio_cash" && (
+                  <p className="text-zinc-600 text-xs">
+                    Available: {formatCurrency(portfolioCashBalance, currency)}
+                  </p>
+                )}
                 <input
                   type="date"
                   value={investMoreDate}
                   onChange={(e) => setInvestMoreDate(e.target.value)}
                   className={fieldClass}
                 />
-
                 {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
-
                 <button
                   type="button"
                   onClick={handleInvestMore}
@@ -2622,3 +3138,4 @@ export default function Portfolio() {
     </>
   );
 }
+
