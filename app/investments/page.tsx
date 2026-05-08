@@ -75,6 +75,7 @@ type SpendingEntry = {
   accountId: string;
   createdAt: string;
   updatedAt: string;
+  portfolioActivityId?: string;
 };
 
 type PortfolioActivityEntry = {
@@ -90,7 +91,10 @@ type PortfolioActivityEntry = {
   investedAtSale?: number;
   realizedProfit?: number;
   closesPosition?: boolean;
+  previousCurrentValue?: number;
+  cashEntryId?: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 type PortfolioHolding = {
@@ -231,19 +235,25 @@ function parseOptionalNumber(value: string) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function addSellProceedsToCashFlow({
+function upsertSellProceedsToCashFlow({
+  cashEntryId,
+  portfolioActivityId,
   name,
   ticker,
   amount,
   date,
   now,
 }: {
+  cashEntryId?: string;
+  portfolioActivityId: string;
   name: string;
   ticker?: string;
   amount: number;
   date: string;
   now: string;
 }) {
+  const nextCashEntryId = cashEntryId || generateId();
+
   try {
     const savedEntries = localStorage.getItem("entries");
     const parsedEntries = savedEntries ? JSON.parse(savedEntries) : [];
@@ -252,7 +262,8 @@ function addSellProceedsToCashFlow({
       : [];
 
     const cashFlowEntry: SpendingEntry = {
-      id: generateId(),
+      id: nextCashEntryId,
+      portfolioActivityId,
       description: `Sold ${ticker || name}`,
       amount,
       type: "income",
@@ -263,12 +274,48 @@ function addSellProceedsToCashFlow({
       updatedAt: now,
     };
 
+    const withoutPrevious = existingEntries.filter(
+      (entry) =>
+        entry.id !== nextCashEntryId &&
+        entry.portfolioActivityId !== portfolioActivityId,
+    );
+
     localStorage.setItem(
       "entries",
-      JSON.stringify([cashFlowEntry, ...existingEntries]),
+      JSON.stringify([cashFlowEntry, ...withoutPrevious]),
     );
+
+    window.dispatchEvent(new Event("aera-storage-updated"));
   } catch {
     // silent: portfolio sell should still be preserved even if cash flow sync fails
+  }
+
+  return nextCashEntryId;
+}
+
+function removeSellProceedsFromCashFlow({
+  cashEntryId,
+  portfolioActivityId,
+}: {
+  cashEntryId?: string;
+  portfolioActivityId: string;
+}) {
+  try {
+    const savedEntries = localStorage.getItem("entries");
+    const parsedEntries = savedEntries ? JSON.parse(savedEntries) : [];
+    const existingEntries: SpendingEntry[] = Array.isArray(parsedEntries)
+      ? parsedEntries
+      : [];
+
+    const nextEntries = existingEntries.filter(
+      (entry) =>
+        entry.id !== cashEntryId && entry.portfolioActivityId !== portfolioActivityId,
+    );
+
+    localStorage.setItem("entries", JSON.stringify(nextEntries));
+    window.dispatchEvent(new Event("aera-storage-updated"));
+  } catch {
+    // silent
   }
 }
 
@@ -320,6 +367,7 @@ export default function Portfolio() {
   const [investMoreDate, setInvestMoreDate] = useState(getTodayDate());
 
   const [isSellOpen, setIsSellOpen] = useState(false);
+  const [editingSellId, setEditingSellId] = useState<string | null>(null);
   const [sellAmount, setSellAmount] = useState("");
   const [sellDate, setSellDate] = useState(getTodayDate());
   const [sellNotes, setSellNotes] = useState("");
@@ -606,6 +654,11 @@ export default function Portfolio() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [portfolioActivity, selectedPeriod]);
 
+  const periodSellProceeds = periodSellEntries.reduce(
+    (sum, entry) => sum + entry.amount,
+    0,
+  );
+
   const periodActivityEntries = useMemo(() => {
     const buyRows = periodEntries.map((entry) => ({
       id: entry.id,
@@ -637,6 +690,17 @@ export default function Portfolio() {
       holdings.find((holding) => holding.key === selectedHoldingKey) || null
     );
   }, [holdings, selectedHoldingKey]);
+
+  const selectedSellActivity = useMemo(() => {
+    return (
+      portfolioActivity.find((activity) => activity.id === editingSellId) || null
+    );
+  }, [portfolioActivity, editingSellId]);
+
+  const sellModalName = selectedHolding?.name || selectedSellActivity?.name || "Position";
+  const sellModalTicker = selectedHolding?.ticker || selectedSellActivity?.ticker;
+  const sellModalCurrentValue =
+    selectedHolding?.currentValue ?? selectedSellActivity?.previousCurrentValue ?? selectedSellActivity?.amount ?? 0;
 
   const topAllocation = groups[0];
 
@@ -678,7 +742,8 @@ export default function Portfolio() {
     manualContributions ?? reviewContributions;
 
   const realProfit =
-    displayedReviewClosing -
+    displayedReviewClosing +
+    periodSellProceeds -
     displayedReviewOpening -
     displayedReviewContributions;
   const realReturn =
@@ -745,12 +810,15 @@ export default function Portfolio() {
       const monthContributions = entries
         .filter((entry) => entry.date.slice(0, 7) === period)
         .reduce((sum, entry) => sum + entry.amount, 0);
+      const monthSellProceeds = portfolioActivity
+        .filter((entry) => entry.date.slice(0, 7) === period)
+        .reduce((sum, entry) => sum + entry.amount, 0);
       const opening = review?.openingValue ?? 0;
       const closing =
         review?.closingValue ??
         (period === getCurrentPeriodKey() ? totals.currentTotal : 0);
       const contributions = review?.contributionsOverride ?? monthContributions;
-      const profit = closing - opening - contributions;
+      const profit = closing + monthSellProceeds - opening - contributions;
       const returnPct = opening > 0 ? (profit / opening) * 100 : null;
 
       return {
@@ -758,11 +826,12 @@ export default function Portfolio() {
         opening,
         contributions,
         closing,
+        sellProceeds: monthSellProceeds,
         profit,
         returnPct,
       };
     });
-  }, [entries, monthlyReviews, totals.currentTotal]);
+  }, [entries, monthlyReviews, totals.currentTotal, portfolioActivity]);
 
   const annualReviewGroups = useMemo(() => {
     const grouped = reviewHistory.reduce<
@@ -1040,6 +1109,7 @@ export default function Portfolio() {
   const openSellPosition = () => {
     if (!selectedHolding) return;
 
+    setEditingSellId(null);
     setSellAmount(String(selectedHolding.currentValue));
     setSellDate(getTodayDate());
     setSellNotes("");
@@ -1047,16 +1117,55 @@ export default function Portfolio() {
     setIsSellOpen(true);
   };
 
+  const openEditSellActivity = (activity: PortfolioActivityEntry) => {
+    setEditingSellId(activity.id);
+    setSelectedHoldingKey(activity.holdingKey);
+    setSellAmount(String(activity.amount));
+    setSellDate(activity.date);
+    setSellNotes(activity.notes || "");
+    setError("");
+    setIsSellOpen(true);
+  };
+
   const closeSellPosition = () => {
     setIsSellOpen(false);
+    setEditingSellId(null);
     setSellAmount("");
     setSellDate(getTodayDate());
     setSellNotes("");
     setError("");
   };
 
+  const cancelSellActivity = () => {
+    if (!selectedSellActivity) return;
+
+    removeSellProceedsFromCashFlow({
+      cashEntryId: selectedSellActivity.cashEntryId,
+      portfolioActivityId: selectedSellActivity.id,
+    });
+
+    setPortfolioActivity((prev) =>
+      prev.filter((activity) => activity.id !== selectedSellActivity.id),
+    );
+
+    setHoldingValues((prev) => ({
+      ...prev,
+      [selectedSellActivity.holdingKey]:
+        selectedSellActivity.previousCurrentValue ?? selectedSellActivity.amount,
+    }));
+
+    setClosedHoldingKeys((prev) =>
+      prev.filter((key) => key !== selectedSellActivity.holdingKey),
+    );
+
+    closeSellPosition();
+  };
+
   const handleSellPosition = () => {
-    if (!selectedHolding) return;
+    const activeSell = selectedSellActivity;
+    const activeHolding = selectedHolding;
+
+    if (!activeHolding && !activeSell) return;
 
     const parsedSellAmount = Number(sellAmount);
 
@@ -1070,51 +1179,120 @@ export default function Portfolio() {
       return;
     }
 
-    const currentHoldingValue = selectedHolding.currentValue;
+    const now = new Date().toISOString();
+
+    if (activeSell) {
+      const previousCurrentValue =
+        activeSell.previousCurrentValue ?? activeHolding?.currentValue ?? activeSell.amount;
+      const safeSellAmount = Math.min(parsedSellAmount, previousCurrentValue);
+      const closesPosition = safeSellAmount >= previousCurrentValue;
+      const soldRatio =
+        previousCurrentValue > 0 ? Math.min(safeSellAmount / previousCurrentValue, 1) : 1;
+      const estimatedInvestedAtSale =
+        (activeHolding?.invested ?? activeSell.investedAtSale ?? safeSellAmount) * soldRatio;
+      const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
+
+      const cashEntryId = upsertSellProceedsToCashFlow({
+        cashEntryId: activeSell.cashEntryId,
+        portfolioActivityId: activeSell.id,
+        name: activeSell.name,
+        ticker: activeSell.ticker,
+        amount: safeSellAmount,
+        date: sellDate,
+        now,
+      });
+
+      setPortfolioActivity((prev) =>
+        prev.map((activity) =>
+          activity.id === activeSell.id
+            ? {
+                ...activity,
+                amount: safeSellAmount,
+                date: sellDate,
+                notes: sellNotes.trim() || undefined,
+                investedAtSale: estimatedInvestedAtSale,
+                realizedProfit,
+                closesPosition,
+                previousCurrentValue,
+                cashEntryId,
+                updatedAt: now,
+              }
+            : activity,
+        ),
+      );
+
+      setHoldingValues((prev) => ({
+        ...prev,
+        [activeSell.holdingKey]: closesPosition
+          ? 0
+          : Math.max(previousCurrentValue - safeSellAmount, 0),
+      }));
+
+      setClosedHoldingKeys((prev) => {
+        if (closesPosition) {
+          return prev.includes(activeSell.holdingKey)
+            ? prev
+            : [...prev, activeSell.holdingKey];
+        }
+
+        return prev.filter((key) => key !== activeSell.holdingKey);
+      });
+
+      closeSellPosition();
+      return;
+    }
+
+    if (!activeHolding) return;
+
+    const currentHoldingValue = activeHolding.currentValue;
     const safeSellAmount = Math.min(parsedSellAmount, currentHoldingValue);
     const closesPosition = safeSellAmount >= currentHoldingValue;
     const soldRatio =
       currentHoldingValue > 0 ? Math.min(safeSellAmount / currentHoldingValue, 1) : 1;
-    const estimatedInvestedAtSale = selectedHolding.invested * soldRatio;
+    const estimatedInvestedAtSale = activeHolding.invested * soldRatio;
     const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
-    const now = new Date().toISOString();
+    const activityId = generateId();
 
-    const sellActivity: PortfolioActivityEntry = {
-      id: generateId(),
-      holdingKey: selectedHolding.key,
-      name: selectedHolding.name,
-      type: selectedHolding.type,
-      activityType: "sell",
-      amount: safeSellAmount,
-      date: sellDate,
-      ticker: selectedHolding.ticker,
-      notes: sellNotes.trim() || undefined,
-      investedAtSale: estimatedInvestedAtSale,
-      realizedProfit,
-      closesPosition,
-      createdAt: now,
-    };
-
-    setPortfolioActivity((prev) => [sellActivity, ...prev]);
-
-    addSellProceedsToCashFlow({
-      name: selectedHolding.name,
-      ticker: selectedHolding.ticker,
+    const cashEntryId = upsertSellProceedsToCashFlow({
+      portfolioActivityId: activityId,
+      name: activeHolding.name,
+      ticker: activeHolding.ticker,
       amount: safeSellAmount,
       date: sellDate,
       now,
     });
 
+    const sellActivity: PortfolioActivityEntry = {
+      id: activityId,
+      holdingKey: activeHolding.key,
+      name: activeHolding.name,
+      type: activeHolding.type,
+      activityType: "sell",
+      amount: safeSellAmount,
+      date: sellDate,
+      ticker: activeHolding.ticker,
+      notes: sellNotes.trim() || undefined,
+      investedAtSale: estimatedInvestedAtSale,
+      realizedProfit,
+      closesPosition,
+      previousCurrentValue: currentHoldingValue,
+      cashEntryId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setPortfolioActivity((prev) => [sellActivity, ...prev]);
+
     setHoldingValues((prev) => ({
       ...prev,
-      [selectedHolding.key]: closesPosition
+      [activeHolding.key]: closesPosition
         ? 0
         : Math.max(currentHoldingValue - safeSellAmount, 0),
     }));
 
     if (closesPosition) {
       setClosedHoldingKeys((prev) =>
-        prev.includes(selectedHolding.key) ? prev : [...prev, selectedHolding.key],
+        prev.includes(activeHolding.key) ? prev : [...prev, activeHolding.key],
       );
     }
 
@@ -1506,7 +1684,10 @@ export default function Portfolio() {
                           onClick={() => {
                             if (entry.kind === "buy") {
                               openEditEntryModal(entry.source as InvestmentEntry);
+                              return;
                             }
+
+                            openEditSellActivity(entry.source as PortfolioActivityEntry);
                           }}
                           className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
                             index !== periodActivityEntries.length - 1
@@ -1629,6 +1810,15 @@ export default function Portfolio() {
                     {formatCurrency(displayedReviewContributions, currency)}
                   </span>
                 </div>
+
+                {periodSellProceeds > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500">Sold</span>
+                    <span className="text-green-500 font-medium">
+                      +{formatCurrency(periodSellProceeds, currency)}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-500">Closing Value</span>
@@ -1775,6 +1965,9 @@ export default function Portfolio() {
                                         Contributions {" "}
                                         {formatCurrency(item.contributions, currency)} ·
                                         Closing {formatCurrency(item.closing, currency)}
+                                        {item.sellProceeds > 0
+                                          ? ` · Sold ${formatCurrency(item.sellProceeds, currency)}`
+                                          : ""}
                                       </p>
 
                                       <p className="text-zinc-600 text-xs mt-1 leading-relaxed">
@@ -2260,7 +2453,7 @@ export default function Portfolio() {
         </div>
       )}
 
-      {isSellOpen && selectedHolding && (
+      {isSellOpen && (selectedHolding || selectedSellActivity) && (
         <div
           className="fixed inset-0 z-[60] bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
           onClick={closeSellPosition}
@@ -2273,7 +2466,7 @@ export default function Portfolio() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-white text-sm font-medium">
-                    Sell {selectedHolding.name}
+                    {editingSellId ? "Edit sale" : `Sell ${sellModalName}`}
                   </p>
                   <p className="text-zinc-600 text-xs mt-1">
                     Selling preserves history and records portfolio activity.
@@ -2293,7 +2486,7 @@ export default function Portfolio() {
                 <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
                   <p className="text-zinc-500 text-xs mb-2">Current value</p>
                   <p className="text-white text-sm font-medium">
-                    {formatCurrency(selectedHolding.currentValue, currency)}
+                    {formatCurrency(sellModalCurrentValue, currency)}
                   </p>
                 </div>
 
@@ -2329,8 +2522,18 @@ export default function Portfolio() {
                   onClick={handleSellPosition}
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
                 >
-                  Confirm sale
+                  {editingSellId ? "Save sale" : "Confirm sale"}
                 </button>
+
+                {editingSellId && (
+                  <button
+                    type="button"
+                    onClick={cancelSellActivity}
+                    className="w-full text-center text-red-400 text-xs py-1 mt-2 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
+                  >
+                    Cancel sale
+                  </button>
+                )}
               </div>
             </div>
           </div>
