@@ -27,7 +27,8 @@ type PortfolioCashMovementType =
   | "withdrawal"
   | "sell_proceeds"
   | "buy_from_cash"
-  | "reallocation_buy";
+  | "reallocation_buy"
+  | "adjustment";
 
 type LegacyInvestment = {
   id: string;
@@ -342,8 +343,51 @@ function removeSellProceedsFromCashFlow({
   }
 }
 
+function addPortfolioCashWithdrawalToCashFlow({
+  portfolioActivityId,
+  amount,
+  date,
+  now,
+}: {
+  portfolioActivityId: string;
+  amount: number;
+  date: string;
+  now: string;
+}) {
+  try {
+    const savedEntries = localStorage.getItem("entries");
+    const parsedEntries = savedEntries ? JSON.parse(savedEntries) : [];
+    const existingEntries: SpendingEntry[] = Array.isArray(parsedEntries)
+      ? parsedEntries
+      : [];
+
+    const cashFlowEntry: SpendingEntry = {
+      id: generateId(),
+      portfolioActivityId,
+      description: "Portfolio cash withdrawal",
+      amount,
+      type: "income",
+      category: "investment_income",
+      date,
+      accountId: "main",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    localStorage.setItem(
+      "entries",
+      JSON.stringify([cashFlowEntry, ...existingEntries]),
+    );
+
+    window.dispatchEvent(new Event("aera-storage-updated"));
+  } catch {
+    // silent
+  }
+}
+
+
 function getCashMovementSign(type: PortfolioCashMovementType) {
-  if (type === "deposit" || type === "sell_proceeds") return 1;
+  if (type === "deposit" || type === "sell_proceeds" || type === "adjustment") return 1;
   return -1;
 }
 
@@ -414,6 +458,13 @@ export default function Portfolio() {
   const [reallocateType, setReallocateType] = useState<AssetType>("stock");
   const [reallocateTicker, setReallocateTicker] = useState("");
   const [reallocateAmount, setReallocateAmount] = useState("");
+
+  const [isManageCashOpen, setIsManageCashOpen] = useState(false);
+  const [cashAction, setCashAction] = useState<"deposit" | "withdrawal" | "adjustment">("adjustment");
+  const [cashAmount, setCashAmount] = useState("");
+  const [cashTargetValue, setCashTargetValue] = useState("");
+  const [cashDate, setCashDate] = useState(getTodayDate());
+  const [cashNotes, setCashNotes] = useState("");
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isActivityListOpen, setIsActivityListOpen] = useState(true);
@@ -790,12 +841,14 @@ export default function Portfolio() {
         kind: "cash" as const,
         name:
           movement.type === "deposit"
-            ? "Portfolio cash deposit"
+            ? "Added portfolio cash"
             : movement.type === "withdrawal"
-              ? "Portfolio cash withdrawal"
+              ? "Withdrew portfolio cash"
               : movement.type === "sell_proceeds"
                 ? "Cash from sale"
-                : "Used portfolio cash",
+                : movement.type === "adjustment"
+                  ? "Adjusted portfolio cash"
+                  : "Used portfolio cash",
         type: "cash" as AssetType,
         ticker: undefined,
         amount: movement.amount,
@@ -1766,6 +1819,95 @@ export default function Portfolio() {
     closeHoldingDetail();
   };
 
+  const openManageCash = () => {
+    setCashAction("adjustment");
+    setCashAmount("");
+    setCashTargetValue(String(Math.max(portfolioCashBalance, 0)));
+    setCashDate(getTodayDate());
+    setCashNotes("");
+    setError("");
+    setIsManageCashOpen(true);
+  };
+
+  const closeManageCash = () => {
+    setIsManageCashOpen(false);
+    setCashAction("adjustment");
+    setCashAmount("");
+    setCashTargetValue("");
+    setCashDate(getTodayDate());
+    setCashNotes("");
+    setError("");
+  };
+
+  const handlePortfolioCashSubmit = () => {
+    const now = new Date().toISOString();
+
+    if (cashAction === "adjustment") {
+      const parsedTarget = Number(cashTargetValue);
+
+      if (cashTargetValue.trim() === "" || Number.isNaN(parsedTarget) || parsedTarget < 0) {
+        setError("Please enter a valid cash balance.");
+        return;
+      }
+
+      const delta = parsedTarget - portfolioCashBalance;
+
+      if (Math.abs(delta) < 0.01) {
+        closeManageCash();
+        return;
+      }
+
+      addPortfolioCashMovement({
+        type: "adjustment",
+        amount: delta,
+        date: getTodayDate(),
+        notes:
+          cashNotes.trim() ||
+          `Portfolio cash adjusted from ${formatCurrency(portfolioCashBalance, currency)} to ${formatCurrency(parsedTarget, currency)}`,
+        updatedAt: now,
+      });
+
+      closeManageCash();
+      return;
+    }
+
+    const parsedAmount = Number(cashAmount);
+
+    if (!cashAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError("Please enter a valid amount.");
+      return;
+    }
+
+    if (!cashDate) {
+      setError("Please select a date.");
+      return;
+    }
+
+    if (cashAction === "withdrawal" && parsedAmount > portfolioCashBalance) {
+      setError("Withdrawal cannot be higher than portfolio cash.");
+      return;
+    }
+
+    const movementId = addPortfolioCashMovement({
+      type: cashAction,
+      amount: parsedAmount,
+      date: cashDate,
+      notes: cashNotes.trim() || undefined,
+      updatedAt: now,
+    });
+
+    if (cashAction === "withdrawal") {
+      addPortfolioCashWithdrawalToCashFlow({
+        portfolioActivityId: movementId,
+        amount: parsedAmount,
+        date: cashDate,
+        now,
+      });
+    }
+
+    closeManageCash();
+  };
+
   const handleQuickAction = (tab: PortfolioTab | "add") => {
     if (tab === "add") {
       openCreateAssetModal();
@@ -1804,11 +1946,18 @@ export default function Portfolio() {
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(totals.currentTotal, currency)}
             </p>
-            {portfolioCashBalance > 0 && (
-              <p className="text-zinc-500 text-sm mt-2">
+            <div className="mt-2 flex items-center gap-3">
+              <p className="text-zinc-500 text-sm">
                 Portfolio cash {formatCurrency(portfolioCashBalance, currency)}
               </p>
-            )}
+              <button
+                type="button"
+                onClick={openManageCash}
+                className="text-xs text-[var(--accent)]/80 transition-colors duration-200 hover:text-[var(--accent)]"
+              >
+                Manage
+              </button>
+            </div>
           </section>
 
           <nav className="mb-5">
@@ -1941,7 +2090,16 @@ export default function Portfolio() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-zinc-500">Portfolio Cash</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500">Portfolio Cash</span>
+                          <button
+                            type="button"
+                            onClick={openManageCash}
+                            className="text-[11px] text-[var(--accent)]/75 transition-colors duration-200 hover:text-[var(--accent)]"
+                          >
+                            Manage
+                          </button>
+                        </div>
                         <span className="text-white font-medium">
                           {formatCurrency(portfolioCashBalance, currency)}
                         </span>
@@ -2187,10 +2345,33 @@ export default function Portfolio() {
                           </div>
                           <div className="text-right shrink-0">
                             <p
-                              className={`text-sm font-medium ${entry.kind === "sell" ? "text-green-500" : "text-zinc-300"}`}
+                              className={`text-sm font-medium ${
+                                entry.kind === "sell"
+                                  ? "text-green-500"
+                                  : entry.kind === "cash" &&
+                                      (["deposit", "sell_proceeds"].includes((entry.source as PortfolioCashMovement).type) ||
+                                        ((entry.source as PortfolioCashMovement).type === "adjustment" && entry.amount > 0))
+                                    ? "text-green-500"
+                                    : entry.kind === "cash" &&
+                                        (["withdrawal", "buy_from_cash", "reallocation_buy"].includes((entry.source as PortfolioCashMovement).type) || entry.amount < 0)
+                                      ? "text-red-500"
+                                      : "text-zinc-300"
+                              }`}
                             >
-                              {entry.kind === "sell" ? "+" : ""}
-                              {formatCurrency(entry.amount, currency)}
+                              {entry.kind === "sell" ||
+                              (entry.kind === "cash" &&
+                                ["deposit", "sell_proceeds"].includes((entry.source as PortfolioCashMovement).type)) ||
+                              (entry.kind === "cash" &&
+                                (entry.source as PortfolioCashMovement).type === "adjustment" &&
+                                entry.amount > 0)
+                                ? "+"
+                                : entry.kind === "cash" &&
+                                    (["withdrawal", "buy_from_cash", "reallocation_buy"].includes((entry.source as PortfolioCashMovement).type) || entry.amount < 0)
+                                  ? "-"
+                                  : ""}
+                              {entry.kind === "cash"
+                                ? formatCurrency(Math.abs(entry.amount), currency)
+                                : formatCurrency(entry.amount, currency)}
                             </p>
                           </div>
                         </button>
@@ -2540,6 +2721,145 @@ export default function Portfolio() {
           )}
         </div>
       </main>
+
+      {isManageCashOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={closeManageCash}
+        >
+          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-white text-sm font-medium">
+                    Manage Portfolio Cash
+                  </p>
+                  <p className="text-zinc-600 text-xs mt-1">
+                    Adjust available cash inside your portfolio.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeManageCash}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mb-4 rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
+                <p className="text-zinc-500 text-xs mb-2">Current portfolio cash</p>
+                <p className="text-white text-xl font-semibold tracking-tight">
+                  {formatCurrency(portfolioCashBalance, currency)}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashAction("deposit");
+                    setError("");
+                  }}
+                  className={`rounded-full h-[42px] text-xs border transition-all duration-200 ease-out active:scale-[0.98] ${
+                    cashAction === "deposit"
+                      ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                      : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                  }`}
+                >
+                  Add cash
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashAction("withdrawal");
+                    setError("");
+                  }}
+                  className={`rounded-full h-[42px] text-xs border transition-all duration-200 ease-out active:scale-[0.98] ${
+                    cashAction === "withdrawal"
+                      ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                      : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                  }`}
+                >
+                  Withdraw
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashAction("adjustment");
+                    setCashTargetValue(String(Math.max(portfolioCashBalance, 0)));
+                    setError("");
+                  }}
+                  className={`rounded-full h-[42px] text-xs border transition-all duration-200 ease-out active:scale-[0.98] ${
+                    cashAction === "adjustment"
+                      ? "bg-[var(--accent)] text-black border-[var(--accent)]"
+                      : "bg-zinc-800/80 border-white/5 text-zinc-400"
+                  }`}
+                >
+                  Adjust
+                </button>
+              </div>
+
+              <div className="grid gap-3">
+                {cashAction === "adjustment" ? (
+                  <input
+                    placeholder="Set portfolio cash to"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={cashTargetValue}
+                    onChange={(e) => setCashTargetValue(e.target.value)}
+                    className={fieldClass}
+                  />
+                ) : (
+                  <>
+                    <input
+                      placeholder="Amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(e.target.value)}
+                      className={fieldClass}
+                    />
+
+                    <input
+                      type="date"
+                      value={cashDate}
+                      onChange={(e) => setCashDate(e.target.value)}
+                      className={fieldClass}
+                    />
+                  </>
+                )}
+
+                <textarea
+                  value={cashNotes}
+                  onChange={(e) => setCashNotes(e.target.value)}
+                  rows={3}
+                  className="w-full bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
+                  placeholder="Optional notes"
+                />
+
+                {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
+
+                <button
+                  type="button"
+                  onClick={handlePortfolioCashSubmit}
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
+                >
+                  {cashAction === "adjustment" ? "Save cash balance" : cashAction === "deposit" ? "Add portfolio cash" : "Withdraw cash"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isReviewEditModalOpen && (
         <div
