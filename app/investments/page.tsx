@@ -2077,23 +2077,6 @@ export default function Portfolio() {
                           {activeHoldings.length}
                         </span>
                       </div>
-                      {portfolioCashBalance > 0 && (
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-zinc-500">Portfolio Cash</span>
-                            <button
-                              type="button"
-                              onClick={openManageCash}
-                              className="text-[11px] text-[var(--accent)]/75 transition-colors duration-200 hover:text-[var(--accent)]"
-                            >
-                              Manage
-                            </button>
-                          </div>
-                          <span className="text-white font-medium">
-                            {formatCurrency(portfolioCashBalance, currency)}
-                          </span>
-                        </div>
-                      )}
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-zinc-500">Invested</span>
                         <span className="text-white font-medium">
@@ -2105,9 +2088,7 @@ export default function Portfolio() {
                         <span className="text-white font-medium text-right">
                           {topAllocation
                             ? `${topAllocation.label} (${topAllocation.allocationPct.toFixed(0)}%)`
-                            : portfolioCashBalance > 0
-                              ? "Portfolio Cash"
-                              : "None"}
+                            : "None"}
                         </span>
                       </div>
                     </div>
@@ -2118,145 +2099,148 @@ export default function Portfolio() {
           )}
 
           {activeTab === "holdings" && (
-  <section className="mb-24">
-    {groups.length === 0 && portfolioCashBalance <= 0 ? (
-      <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
-        <p className="text-zinc-200 text-sm">No holdings yet.</p>
-        <p className="text-zinc-600 text-sm mt-2">
-          Add assets to start building your portfolio.
-        </p>
-      </div>
-    ) : (
-      <>
-        <p className="text-zinc-600 text-xs mb-3">
-          Total Holdings ·{" "}
-          {activeHoldings.length + (portfolioCashBalance > 0 ? 1 : 0)}
-        </p>
+            <section className="mb-24">
+              {groups.length === 0 && portfolioCashBalance <= 0 ? (
+                <div className="rounded-[28px] bg-zinc-900/45 border border-white/5 p-6">
+                  <p className="text-zinc-200 text-sm">No holdings yet.</p>
+                  <p className="text-zinc-600 text-sm mt-2">
+                    Add assets to start building your portfolio.
+                  </p>
 
-        <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-          {portfolioCashBalance > 0 && (
-            <button
-              type="button"
-              onClick={openManageCash}
-              className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left border-b border-white/5 transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-            >
-              <div className="min-w-0">
-                <p className="text-zinc-200 font-medium">Cash</p>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Available portfolio cash
-                </p>
-              </div>
-
-              <div className="text-right shrink-0">
-                <p className="text-zinc-300 text-sm font-medium">
-                  {formatCurrency(portfolioCashBalance, currency)}
-                </p>
-              </div>
-            </button>
-          )}
-
-          {groups.map((group, groupIndex) => {
-            const isExpanded = expandedGroup === group.type;
-
-            return (
-              <div
-                key={group.type}
-                className={
-                  groupIndex !== groups.length - 1
-                    ? "border-b border-white/5"
-                    : ""
-                }
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedGroup((prev) =>
-                      prev === group.type ? null : group.type,
-                    )
-                  }
-                  className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-                >
-                  <div className="min-w-0">
-                    <p className="text-zinc-200 font-medium">
-                      {group.label}
-                    </p>
-
-                    {!isExpanded && (
+                  <button
+                    type="button"
+                    onClick={openManageCash}
+                    className="mt-5 w-full flex items-center justify-between gap-4 rounded-[22px] bg-zinc-950/30 border border-white/5 px-4 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-zinc-200 font-medium">Cash</p>
                       <p className="text-xs text-zinc-600 mt-1">
-                        {group.holdings.length} holding
-                        {group.holdings.length === 1 ? "" : "s"}
+                        Available portfolio cash
                       </p>
-                    )}
-                  </div>
+                    </div>
 
-                  {!isExpanded && (
                     <div className="text-right shrink-0">
                       <p className="text-zinc-300 text-sm font-medium">
-                        {formatCurrency(group.currentValue, currency)}
-                      </p>
-
-                      <p
-                        className={`text-xs mt-1 ${
-                          group.profitPct >= 0
-                            ? "text-green-500"
-                            : "text-red-500"
-                        }`}
-                      >
-                        {group.profitPct >= 0 ? "+" : ""}
-                        {group.profitPct.toFixed(1)}%
+                        {formatCurrency(portfolioCashBalance, currency)}
                       </p>
                     </div>
-                  )}
-                </button>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-zinc-600 text-xs mb-3">
+                    Total Holdings · {activeHoldings.length + 1}
+                  </p>
 
-                {isExpanded && (
-                  <div className="px-5 pb-5">
-                    <div className="space-y-1">
-                      {group.holdings.map((holding) => (
-                        <button
-                          key={holding.key}
-                          type="button"
-                          onClick={() => openHoldingDetail(holding)}
-                          className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                  <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={openManageCash}
+                      className={`w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] ${
+                        groups.length > 0 ? "border-b border-white/5" : ""
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-zinc-200 font-medium">Cash</p>
+                        <p className="text-xs text-zinc-600 mt-1">
+                          Available portfolio cash
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className="text-zinc-300 text-sm font-medium">
+                          {formatCurrency(portfolioCashBalance, currency)}
+                        </p>
+                      </div>
+                    </button>
+
+                    {groups.map((group, groupIndex) => {
+                      const isExpanded = expandedGroup === group.type;
+                      return (
+                        <div
+                          key={group.type}
+                          className={
+                            groupIndex !== groups.length - 1
+                              ? "border-b border-white/5"
+                              : ""
+                          }
                         >
-                          <div className="min-w-0">
-                            <p className="text-zinc-200 truncate">
-                              {holding.name}
-                            </p>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <p className="text-zinc-300 text-sm font-medium">
-                              {formatCurrency(
-                                holding.currentValue,
-                                currency,
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedGroup((prev) =>
+                                prev === group.type ? null : group.type,
+                              )
+                            }
+                            className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-zinc-200 font-medium">
+                                {group.label}
+                              </p>
+                              {!isExpanded && (
+                                <p className="text-xs text-zinc-600 mt-1">
+                                  {group.holdings.length} holding
+                                  {group.holdings.length === 1 ? "" : "s"}
+                                </p>
                               )}
-                            </p>
-
-                            <p
-                              className={`text-xs mt-1 ${
-                                holding.profitPct >= 0
-                                  ? "text-green-500"
-                                  : "text-red-500"
-                              }`}
-                            >
-                              {holding.profitPct >= 0 ? "+" : ""}
-                              {holding.profitPct.toFixed(1)}%
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                            </div>
+                            {!isExpanded && (
+                              <div className="text-right shrink-0">
+                                <p className="text-zinc-300 text-sm font-medium">
+                                  {formatCurrency(group.currentValue, currency)}
+                                </p>
+                                <p
+                                  className={`text-xs mt-1 ${group.profitPct >= 0 ? "text-green-500" : "text-red-500"}`}
+                                >
+                                  {group.profitPct >= 0 ? "+" : ""}
+                                  {group.profitPct.toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                          </button>
+                          {isExpanded && (
+                            <div className="px-5 pb-5">
+                              <div className="space-y-1">
+                                {group.holdings.map((holding) => (
+                                  <button
+                                    key={holding.key}
+                                    type="button"
+                                    onClick={() => openHoldingDetail(holding)}
+                                    className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-zinc-200 truncate">
+                                        {holding.name}
+                                      </p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-zinc-300 text-sm font-medium">
+                                        {formatCurrency(
+                                          holding.currentValue,
+                                          currency,
+                                        )}
+                                      </p>
+                                      <p
+                                        className={`text-xs mt-1 ${holding.profitPct >= 0 ? "text-green-500" : "text-red-500"}`}
+                                      >
+                                        {holding.profitPct >= 0 ? "+" : ""}
+                                        {holding.profitPct.toFixed(1)}%
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </>
-    )}
-  </section>
-)}
+                </>
+              )}
+            </section>
+          )}
 
           {activeTab === "activity" && (
             <section className="mb-24">
