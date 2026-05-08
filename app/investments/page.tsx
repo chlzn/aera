@@ -1946,18 +1946,6 @@ export default function Portfolio() {
             <p className="text-5xl font-semibold tracking-tight text-white">
               {formatCurrency(totals.currentTotal, currency)}
             </p>
-            <div className="mt-2 flex items-center gap-3">
-              <p className="text-zinc-500 text-sm">
-                Portfolio cash {formatCurrency(portfolioCashBalance, currency)}
-              </p>
-              <button
-                type="button"
-                onClick={openManageCash}
-                className="text-xs text-[var(--accent)]/80 transition-colors duration-200 hover:text-[var(--accent)]"
-              >
-                Manage
-              </button>
-            </div>
           </section>
 
           <nav className="mb-5">
@@ -2089,21 +2077,23 @@ export default function Portfolio() {
                           {activeHoldings.length}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-zinc-500">Portfolio Cash</span>
-                          <button
-                            type="button"
-                            onClick={openManageCash}
-                            className="text-[11px] text-[var(--accent)]/75 transition-colors duration-200 hover:text-[var(--accent)]"
-                          >
-                            Manage
-                          </button>
+                      {portfolioCashBalance > 0 && (
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-zinc-500">Portfolio Cash</span>
+                            <button
+                              type="button"
+                              onClick={openManageCash}
+                              className="text-[11px] text-[var(--accent)]/75 transition-colors duration-200 hover:text-[var(--accent)]"
+                            >
+                              Manage
+                            </button>
+                          </div>
+                          <span className="text-white font-medium">
+                            {formatCurrency(portfolioCashBalance, currency)}
+                          </span>
                         </div>
-                        <span className="text-white font-medium">
-                          {formatCurrency(portfolioCashBalance, currency)}
-                        </span>
-                      </div>
+                      )}
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-zinc-500">Invested</span>
                         <span className="text-white font-medium">
@@ -3458,4 +3448,3 @@ export default function Portfolio() {
     </>
   );
 }
-
