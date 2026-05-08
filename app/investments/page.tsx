@@ -296,9 +296,15 @@ function upsertSellProceedsToCashFlow({
 function removeSellProceedsFromCashFlow({
   cashEntryId,
   portfolioActivityId,
+  description,
+  amount,
+  date,
 }: {
   cashEntryId?: string;
   portfolioActivityId: string;
+  description?: string;
+  amount?: number;
+  date?: string;
 }) {
   try {
     const savedEntries = localStorage.getItem("entries");
@@ -307,10 +313,19 @@ function removeSellProceedsFromCashFlow({
       ? parsedEntries
       : [];
 
-    const nextEntries = existingEntries.filter(
-      (entry) =>
-        entry.id !== cashEntryId && entry.portfolioActivityId !== portfolioActivityId,
-    );
+    const nextEntries = existingEntries.filter((entry) => {
+      const matchesLinkedEntry =
+        entry.id === cashEntryId || entry.portfolioActivityId === portfolioActivityId;
+      const matchesFallbackEntry =
+        Boolean(description && date && typeof amount === "number") &&
+        entry.description === description &&
+        entry.date === date &&
+        entry.amount === amount &&
+        entry.type === "income" &&
+        entry.category === "investment_income";
+
+      return !matchesLinkedEntry && !matchesFallbackEntry;
+    });
 
     localStorage.setItem("entries", JSON.stringify(nextEntries));
     window.dispatchEvent(new Event("aera-storage-updated"));
@@ -1142,6 +1157,9 @@ export default function Portfolio() {
     removeSellProceedsFromCashFlow({
       cashEntryId: selectedSellActivity.cashEntryId,
       portfolioActivityId: selectedSellActivity.id,
+      description: `Sold ${selectedSellActivity.ticker || selectedSellActivity.name}`,
+      amount: selectedSellActivity.amount,
+      date: selectedSellActivity.date,
     });
 
     setPortfolioActivity((prev) =>
@@ -2526,13 +2544,18 @@ export default function Portfolio() {
                 </button>
 
                 {editingSellId && (
-                  <button
-                    type="button"
-                    onClick={cancelSellActivity}
-                    className="w-full text-center text-red-400 text-xs py-1 mt-2 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
-                  >
-                    Cancel sale
-                  </button>
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={cancelSellActivity}
+                      className="w-full text-center text-red-400 text-xs py-1 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
+                    >
+                      Delete sale
+                    </button>
+                    <p className="text-center text-zinc-700 text-[11px] mt-1">
+                      Removes this sale, its cash entry, and its review impact.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
