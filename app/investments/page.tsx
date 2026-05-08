@@ -47,6 +47,36 @@ type InvestmentEntry = {
   updatedAt: string;
 };
 
+type SpendingEntry = {
+  id: string;
+  description: string;
+  amount: number;
+  type: "income" | "expense";
+  category:
+    | "salary"
+    | "freelance"
+    | "bonus"
+    | "investment_income"
+    | "refund"
+    | "housing"
+    | "food"
+    | "transport"
+    | "bills"
+    | "subscription"
+    | "shopping"
+    | "health"
+    | "entertainment"
+    | "travel"
+    | "education"
+    | "payments"
+    | "investments"
+    | "other";
+  date: string;
+  accountId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type PortfolioActivityEntry = {
   id: string;
   holdingKey: string;
@@ -199,6 +229,47 @@ function parseOptionalNumber(value: string) {
 
   const parsed = Number(value);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function addSellProceedsToCashFlow({
+  name,
+  ticker,
+  amount,
+  date,
+  now,
+}: {
+  name: string;
+  ticker?: string;
+  amount: number;
+  date: string;
+  now: string;
+}) {
+  try {
+    const savedEntries = localStorage.getItem("entries");
+    const parsedEntries = savedEntries ? JSON.parse(savedEntries) : [];
+    const existingEntries: SpendingEntry[] = Array.isArray(parsedEntries)
+      ? parsedEntries
+      : [];
+
+    const cashFlowEntry: SpendingEntry = {
+      id: generateId(),
+      description: `Sold ${ticker || name}`,
+      amount,
+      type: "income",
+      category: "investment_income",
+      date,
+      accountId: "main",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    localStorage.setItem(
+      "entries",
+      JSON.stringify([cashFlowEntry, ...existingEntries]),
+    );
+  } catch {
+    // silent: portfolio sell should still be preserved even if cash flow sync fails
+  }
 }
 
 export default function Portfolio() {
@@ -1025,6 +1096,14 @@ export default function Portfolio() {
     };
 
     setPortfolioActivity((prev) => [sellActivity, ...prev]);
+
+    addSellProceedsToCashFlow({
+      name: selectedHolding.name,
+      ticker: selectedHolding.ticker,
+      amount: safeSellAmount,
+      date: sellDate,
+      now,
+    });
 
     setHoldingValues((prev) => ({
       ...prev,
