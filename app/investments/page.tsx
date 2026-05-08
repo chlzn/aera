@@ -47,6 +47,22 @@ type InvestmentEntry = {
   updatedAt: string;
 };
 
+type PortfolioActivityEntry = {
+  id: string;
+  holdingKey: string;
+  name: string;
+  type: AssetType;
+  activityType: "sell";
+  amount: number;
+  date: string;
+  ticker?: string;
+  notes?: string;
+  investedAtSale?: number;
+  realizedProfit?: number;
+  closesPosition?: boolean;
+  createdAt: string;
+};
+
 type PortfolioHolding = {
   key: string;
   name: string;
@@ -192,6 +208,10 @@ export default function Portfolio() {
   const [holdingValues, setHoldingValues] = useState<Record<string, number>>(
     {},
   );
+  const [portfolioActivity, setPortfolioActivity] = useState<
+    PortfolioActivityEntry[]
+  >([]);
+  const [closedHoldingKeys, setClosedHoldingKeys] = useState<string[]>([]);
   const [monthlyReviews, setMonthlyReviews] = useState<
     Record<string, MonthlyReview>
   >({});
@@ -228,6 +248,13 @@ export default function Portfolio() {
   const [investMoreAmount, setInvestMoreAmount] = useState("");
   const [investMoreDate, setInvestMoreDate] = useState(getTodayDate());
 
+  const [isSellOpen, setIsSellOpen] = useState(false);
+  const [sellAmount, setSellAmount] = useState("");
+  const [sellDate, setSellDate] = useState(getTodayDate());
+  const [sellNotes, setSellNotes] = useState("");
+
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
   const [isActivityListOpen, setIsActivityListOpen] = useState(true);
   const [error, setError] = useState("");
 
@@ -240,6 +267,22 @@ export default function Portfolio() {
       const savedMonthlyReviews = localStorage.getItem(
         "investmentMonthlyReviews",
       );
+      const savedPortfolioActivity = localStorage.getItem("portfolioActivity");
+      const savedClosedHoldingKeys = localStorage.getItem("closedHoldingKeys");
+
+      if (savedPortfolioActivity) {
+        const parsedPortfolioActivity = JSON.parse(savedPortfolioActivity);
+        setPortfolioActivity(
+          Array.isArray(parsedPortfolioActivity) ? parsedPortfolioActivity : [],
+        );
+      }
+
+      if (savedClosedHoldingKeys) {
+        const parsedClosedHoldingKeys = JSON.parse(savedClosedHoldingKeys);
+        setClosedHoldingKeys(
+          Array.isArray(parsedClosedHoldingKeys) ? parsedClosedHoldingKeys : [],
+        );
+      }
 
       if (savedMonthlyReviews) {
         const parsedMonthlyReviews = JSON.parse(savedMonthlyReviews);
@@ -302,6 +345,8 @@ export default function Portfolio() {
     } catch {
       setEntries([]);
       setHoldingValues({});
+      setPortfolioActivity([]);
+      setClosedHoldingKeys([]);
       setMonthlyReviews({});
     } finally {
       setEntriesHydrated(true);
@@ -355,13 +400,20 @@ export default function Portfolio() {
       .sort((a, b) => b.currentValue - a.currentValue);
   }, [entries, holdingValues]);
 
+  const activeHoldings = useMemo(() => {
+    return holdings.filter(
+      (holding) =>
+        !closedHoldingKeys.includes(holding.key) && holding.currentValue > 0,
+    );
+  }, [holdings, closedHoldingKeys]);
+
   const totals = useMemo(() => {
-    const investedTotal = holdings.reduce(
+    const investedTotal = activeHoldings.reduce(
       (acc, holding) => acc + holding.invested,
       0,
     );
 
-    const currentTotal = holdings.reduce(
+    const currentTotal = activeHoldings.reduce(
       (acc, holding) => acc + holding.currentValue,
       0,
     );
@@ -375,12 +427,12 @@ export default function Portfolio() {
       profit,
       profitPct,
     };
-  }, [holdings]);
+  }, [activeHoldings]);
 
   const groups = useMemo<PortfolioGroup[]>(() => {
     return assetTypeOrder
       .map((assetType) => {
-        const groupHoldings = holdings
+        const groupHoldings = activeHoldings
           .filter((holding) => holding.type === assetType)
           .sort((a, b) => b.currentValue - a.currentValue);
 
@@ -413,7 +465,7 @@ export default function Portfolio() {
         };
       })
       .filter((group) => group.holdings.length > 0);
-  }, [holdings, totals.currentTotal]);
+  }, [activeHoldings, totals.currentTotal]);
 
   useEffect(() => {
     if (!entriesHydrated) return;
@@ -428,8 +480,13 @@ export default function Portfolio() {
         "investmentMonthlyReviews",
         JSON.stringify(monthlyReviews),
       );
+      localStorage.setItem("portfolioActivity", JSON.stringify(portfolioActivity));
+      localStorage.setItem(
+        "closedHoldingKeys",
+        JSON.stringify(closedHoldingKeys),
+      );
 
-      const compatibleHoldings: LegacyInvestment[] = holdings.map(
+      const compatibleHoldings: LegacyInvestment[] = activeHoldings.map(
         (holding) => ({
           id: holding.key,
           name: holding.name,
@@ -447,7 +504,15 @@ export default function Portfolio() {
     } catch {
       // silent
     }
-  }, [entries, holdingValues, monthlyReviews, holdings, entriesHydrated]);
+  }, [
+    entries,
+    holdingValues,
+    monthlyReviews,
+    portfolioActivity,
+    closedHoldingKeys,
+    activeHoldings,
+    entriesHydrated,
+  ]);
 
   const availablePeriods = useMemo(() => {
     return getAvailablePeriodsFromCurrentYear();
@@ -463,6 +528,38 @@ export default function Portfolio() {
     (acc, entry) => acc + entry.amount,
     0,
   );
+
+  const periodSellEntries = useMemo(() => {
+    return portfolioActivity
+      .filter((entry) => entry.date.slice(0, 7) === selectedPeriod)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [portfolioActivity, selectedPeriod]);
+
+  const periodActivityEntries = useMemo(() => {
+    const buyRows = periodEntries.map((entry) => ({
+      id: entry.id,
+      kind: "buy" as const,
+      name: entry.name,
+      type: entry.type,
+      ticker: entry.ticker,
+      amount: entry.amount,
+      date: entry.date,
+      source: entry,
+    }));
+
+    const sellRows = periodSellEntries.map((entry) => ({
+      id: entry.id,
+      kind: "sell" as const,
+      name: entry.name,
+      type: entry.type,
+      ticker: entry.ticker,
+      amount: entry.amount,
+      date: entry.date,
+      source: entry,
+    }));
+
+    return [...buyRows, ...sellRows].sort((a, b) => b.date.localeCompare(a.date));
+  }, [periodEntries, periodSellEntries]);
 
   const selectedHolding = useMemo(() => {
     return (
@@ -766,6 +863,8 @@ export default function Portfolio() {
       setEntries((prev) => [newEntry, ...prev]);
     }
 
+    setClosedHoldingKeys((prev) => prev.filter((key) => key !== newKey));
+
     if (currentValue.trim()) {
       const currentValueNumber = Number(currentValue);
 
@@ -785,9 +884,34 @@ export default function Portfolio() {
 
   const handleDeleteEntry = () => {
     if (!editingEntryId) return;
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handlePermanentDeleteEntry = () => {
+    if (!editingEntryId) return;
 
     setEntries((prev) => prev.filter((entry) => entry.id !== editingEntryId));
+    setIsDeleteConfirmOpen(false);
     closeAssetModal();
+  };
+
+  const openSellInsteadFromEntry = () => {
+    if (!editingEntryId) return;
+
+    const entry = entries.find((item) => item.id === editingEntryId);
+    if (!entry) return;
+
+    const key = getHoldingKey(entry.name, entry.ticker);
+    const holding = holdings.find((item) => item.key === key);
+    if (!holding) return;
+
+    closeAssetModal();
+    setIsDeleteConfirmOpen(false);
+    openHoldingDetail(holding);
+    setSellAmount(String(holding.currentValue));
+    setSellDate(getTodayDate());
+    setSellNotes("");
+    setIsSellOpen(true);
   };
 
   const openHoldingDetail = (holding: PortfolioHolding) => {
@@ -842,6 +966,83 @@ export default function Portfolio() {
     setError("");
   };
 
+  const openSellPosition = () => {
+    if (!selectedHolding) return;
+
+    setSellAmount(String(selectedHolding.currentValue));
+    setSellDate(getTodayDate());
+    setSellNotes("");
+    setError("");
+    setIsSellOpen(true);
+  };
+
+  const closeSellPosition = () => {
+    setIsSellOpen(false);
+    setSellAmount("");
+    setSellDate(getTodayDate());
+    setSellNotes("");
+    setError("");
+  };
+
+  const handleSellPosition = () => {
+    if (!selectedHolding) return;
+
+    const parsedSellAmount = Number(sellAmount);
+
+    if (!sellAmount || Number.isNaN(parsedSellAmount) || parsedSellAmount <= 0) {
+      setError("Please enter a valid sell amount.");
+      return;
+    }
+
+    if (!sellDate) {
+      setError("Please select a sell date.");
+      return;
+    }
+
+    const currentHoldingValue = selectedHolding.currentValue;
+    const safeSellAmount = Math.min(parsedSellAmount, currentHoldingValue);
+    const closesPosition = safeSellAmount >= currentHoldingValue;
+    const soldRatio =
+      currentHoldingValue > 0 ? Math.min(safeSellAmount / currentHoldingValue, 1) : 1;
+    const estimatedInvestedAtSale = selectedHolding.invested * soldRatio;
+    const realizedProfit = safeSellAmount - estimatedInvestedAtSale;
+    const now = new Date().toISOString();
+
+    const sellActivity: PortfolioActivityEntry = {
+      id: generateId(),
+      holdingKey: selectedHolding.key,
+      name: selectedHolding.name,
+      type: selectedHolding.type,
+      activityType: "sell",
+      amount: safeSellAmount,
+      date: sellDate,
+      ticker: selectedHolding.ticker,
+      notes: sellNotes.trim() || undefined,
+      investedAtSale: estimatedInvestedAtSale,
+      realizedProfit,
+      closesPosition,
+      createdAt: now,
+    };
+
+    setPortfolioActivity((prev) => [sellActivity, ...prev]);
+
+    setHoldingValues((prev) => ({
+      ...prev,
+      [selectedHolding.key]: closesPosition
+        ? 0
+        : Math.max(currentHoldingValue - safeSellAmount, 0),
+    }));
+
+    if (closesPosition) {
+      setClosedHoldingKeys((prev) =>
+        prev.includes(selectedHolding.key) ? prev : [...prev, selectedHolding.key],
+      );
+    }
+
+    closeSellPosition();
+    closeHoldingDetail();
+  };
+
   const handleInvestMore = () => {
     if (!selectedHolding) return;
 
@@ -872,6 +1073,9 @@ export default function Portfolio() {
     };
 
     setEntries((prev) => [newEntry, ...prev]);
+    setClosedHoldingKeys((prev) =>
+      prev.filter((key) => key !== selectedHolding.key),
+    );
     closeInvestMore();
     closeHoldingDetail();
   };
@@ -1016,7 +1220,7 @@ export default function Portfolio() {
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-zinc-500">Holdings</span>
                         <span className="text-white font-medium">
-                          {holdings.length}
+                          {activeHoldings.length}
                         </span>
                       </div>
 
@@ -1054,7 +1258,7 @@ export default function Portfolio() {
               ) : (
                 <>
                   <p className="text-zinc-600 text-xs mb-3">
-                    Total Holdings · {holdings.length}
+                    Total Holdings · {activeHoldings.length}
                   </p>
 
                   <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
@@ -1190,7 +1394,7 @@ export default function Portfolio() {
                 </p>
               </div>
 
-              {periodEntries.length === 0 ? (
+              {periodActivityEntries.length === 0 ? (
                 <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-6">
                   <p className="text-zinc-300 text-sm">
                     No investments added in this period.
@@ -1216,13 +1420,17 @@ export default function Portfolio() {
 
                   {isActivityListOpen && (
                     <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                      {periodEntries.map((entry, index) => (
+                      {periodActivityEntries.map((entry, index) => (
                         <button
                           key={entry.id}
                           type="button"
-                          onClick={() => openEditEntryModal(entry)}
+                          onClick={() => {
+                            if (entry.kind === "buy") {
+                              openEditEntryModal(entry.source as InvestmentEntry);
+                            }
+                          }}
                           className={`w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02] active:scale-[0.995] ${
-                            index !== periodEntries.length - 1
+                            index !== periodActivityEntries.length - 1
                               ? "border-b border-white/5"
                               : ""
                           }`}
@@ -1230,6 +1438,7 @@ export default function Portfolio() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-zinc-200 truncate">
+                                {entry.kind === "sell" ? "Sold " : "Bought "}
                                 {entry.name}
                               </p>
                               {entry.ticker && (
@@ -1245,7 +1454,14 @@ export default function Portfolio() {
                           </div>
 
                           <div className="text-right shrink-0">
-                            <p className="text-zinc-300 text-sm">
+                            <p
+                              className={`text-sm font-medium ${
+                                entry.kind === "sell"
+                                  ? "text-green-500"
+                                  : "text-zinc-300"
+                              }`}
+                            >
+                              {entry.kind === "sell" ? "+" : ""}
                               {formatCurrency(entry.amount, currency)}
                             </p>
                           </div>
@@ -1797,6 +2013,52 @@ export default function Portfolio() {
         </div>
       )}
 
+      {isDeleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center px-5"
+          onClick={() => setIsDeleteConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-[26px] bg-zinc-900 border border-white/5 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white text-sm font-medium mb-2">
+              Delete permanently?
+            </p>
+            <p className="text-zinc-500 text-sm leading-relaxed mb-5">
+              This removes the investment entry and its history. Use Sell if you
+              sold this asset.
+            </p>
+
+            <div className="grid gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="w-full rounded-full bg-zinc-800 text-zinc-300 py-3 text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={openSellInsteadFromEntry}
+                className="w-full rounded-full bg-[var(--accent)] text-black py-3 text-sm font-medium"
+              >
+                Sell instead
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePermanentDeleteEntry}
+                className="w-full text-center text-red-400 text-xs py-1.5 transition-colors duration-200 ease-out hover:text-red-300"
+              >
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isHoldingDetailOpen && selectedHolding && (
         <div
           className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
@@ -1900,10 +2162,95 @@ export default function Portfolio() {
 
                 <button
                   type="button"
+                  onClick={openSellPosition}
+                  className="w-full text-center text-zinc-400 text-sm py-1.5 transition-colors duration-200 ease-out hover:text-white cursor-pointer"
+                >
+                  Sell / Close position
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleSaveHolding}
                   className="w-full text-center text-zinc-400 text-sm py-1.5 transition-colors duration-200 ease-out hover:text-white cursor-pointer"
                 >
                   Save holding
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSellOpen && selectedHolding && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
+          onClick={closeSellPosition}
+        >
+          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-white text-sm font-medium">
+                    Sell {selectedHolding.name}
+                  </p>
+                  <p className="text-zinc-600 text-xs mt-1">
+                    Selling preserves history and records portfolio activity.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeSellPosition}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="grid gap-3">
+                <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
+                  <p className="text-zinc-500 text-xs mb-2">Current value</p>
+                  <p className="text-white text-sm font-medium">
+                    {formatCurrency(selectedHolding.currentValue, currency)}
+                  </p>
+                </div>
+
+                <input
+                  placeholder="Sell amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={sellAmount}
+                  onChange={(e) => setSellAmount(e.target.value)}
+                  className={fieldClass}
+                />
+
+                <input
+                  type="date"
+                  value={sellDate}
+                  onChange={(e) => setSellDate(e.target.value)}
+                  className={fieldClass}
+                />
+
+                <textarea
+                  value={sellNotes}
+                  onChange={(e) => setSellNotes(e.target.value)}
+                  rows={3}
+                  className="w-full bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 py-3 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors resize-none"
+                  placeholder="Optional notes"
+                />
+
+                {error && <p className="text-sm text-red-500 pt-1">{error}</p>}
+
+                <button
+                  type="button"
+                  onClick={handleSellPosition}
+                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
+                >
+                  Confirm sale
                 </button>
               </div>
             </div>
