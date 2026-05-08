@@ -3,28 +3,22 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import {
-  ArrowLeft,
-  Briefcase,
   Car,
   Circle,
   Gamepad2,
   GraduationCap,
-  GripVertical,
   HeartPulse,
   House,
   PieChart,
   Plane,
   Plus,
-  PlusCircle,
   Receipt,
   Repeat,
   RotateCcw,
   Send,
   ShoppingBag,
-  Sparkles,
-  TrendingUp,
+  Tags,
   UtensilsCrossed,
-  Wallet,
   type LucideIcon,
 } from "lucide-react"
 import { useCurrency } from "@/context/currency-context"
@@ -63,13 +57,10 @@ type DisplayEntry = Entry & {
   paymentBehavior?: PaymentBehavior
 }
 
-type CategoryGroup = {
-  key: string
-  type: EntryType
+type CategoryPreview = {
   category: EntryCategory
   total: number
   entries: DisplayEntry[]
-  hasHistory: boolean
 }
 
 const incomeCategories: { value: EntryCategory; label: string }[] = [
@@ -97,12 +88,7 @@ const expenseCategories: { value: EntryCategory; label: string }[] = [
   { value: "other", label: "Other" },
 ]
 
-const categoryIcons: Record<EntryCategory, LucideIcon> = {
-  salary: Wallet,
-  freelance: Briefcase,
-  bonus: Sparkles,
-  investment_income: TrendingUp,
-  refund: RotateCcw,
+const categoryIcons: Partial<Record<EntryCategory, LucideIcon>> = {
   housing: House,
   food: UtensilsCrossed,
   transport: Car,
@@ -115,11 +101,10 @@ const categoryIcons: Record<EntryCategory, LucideIcon> = {
   education: GraduationCap,
   payments: Send,
   investments: PieChart,
+  refund: RotateCcw,
   other: Circle,
 }
 
-const defaultIncomeCategoryOrder = incomeCategories.map((item) => item.value)
-const defaultExpenseCategoryOrder = expenseCategories.map((item) => item.value)
 
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -147,20 +132,6 @@ function formatCategory(category: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function getCategoryLabel(
-  category: EntryCategory,
-  categories: Record<string, string>
-) {
-  return categories[category] ?? formatCategory(category)
-}
-
-function getAutomationLabel(label: string | undefined, copy: any) {
-  if (!label) return ""
-  if (label === "Monthly") return copy.forms.monthly
-  if (label === "Weekly") return copy.forms.weekly
-  return label
-}
-
 function getTodayDate() {
   const now = new Date()
   const year = now.getFullYear()
@@ -168,6 +139,37 @@ function getTodayDate() {
   const day = `${now.getDate()}`.padStart(2, "0")
 
   return `${year}-${month}-${day}`
+}
+
+function getEndOfPeriodDate(periodKey: string) {
+  const [year, month] = periodKey.split("-").map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(
+    2,
+    "0"
+  )}`
+}
+
+function getPeriodRange(startPeriod: string, endPeriod: string) {
+  const [startYear, startMonth] = startPeriod.split("-").map(Number)
+  const [endYear, endMonth] = endPeriod.split("-").map(Number)
+
+  const periods: string[] = []
+  let year = startYear
+  let month = startMonth
+
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    periods.push(`${year}-${String(month).padStart(2, "0")}`)
+
+    month += 1
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+
+  return periods
 }
 
 function generateId() {
@@ -182,71 +184,37 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
-function formatRecurringFrequencyLabel(
-  frequency: "monthly" | "weekly",
-  copy: any
-) {
-  return frequency === "monthly" ? copy.forms.monthly : copy.forms.weekly
+function formatRecurringFrequencyLabel(frequency: "monthly" | "weekly") {
+  return frequency === "monthly" ? "every month" : "every week"
 }
 
 function formatInstallmentFrequencyLabel(
-  frequency: "monthly" | "weekly" | "biweekly",
-  copy: any
+  frequency: "monthly" | "weekly" | "biweekly"
 ) {
-  if (frequency === "monthly") return copy.forms.monthly
-  if (frequency === "weekly") return copy.forms.weekly
-  return copy.forms.biweekly
+  if (frequency === "monthly") return "every month"
+  if (frequency === "weekly") return "every week"
+  return "every 2 weeks"
 }
 
 function isDue(date: string) {
   return date <= getTodayDate()
 }
 
-function getGroupKey(type: EntryType, category: EntryCategory) {
-  return `${type}-${category}`
+function getCategoryLabel(
+  category: EntryCategory,
+  copy: { categoriesNames: Partial<Record<string, string>> }
+) {
+  return copy.categoriesNames[category] ?? formatCategory(category)
 }
 
-function getCategorySortIndex(category: EntryCategory, order: EntryCategory[]) {
-  const index = order.indexOf(category)
-  return index === -1 ? 999 : index
-}
-
-function moveItem<T>(items: T[], from: T, to: T) {
-  if (from === to) return items
-
-  const withoutFrom = items.filter((item) => item !== from)
-  const targetIndex = withoutFrom.indexOf(to)
-
-  if (targetIndex === -1) return items
-
-  return [
-    ...withoutFrom.slice(0, targetIndex),
-    from,
-    ...withoutFrom.slice(targetIndex),
-  ]
-}
-
-export default function SpendingCategoriesPage() {
+export default function Spending() {
   const { currency } = useCurrency()
   const { copy } = useLanguage()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [templates, setTemplates] = useState<AutomationTemplate[]>([])
   const [paidScheduledIds, setPaidScheduledIds] = useState<string[]>([])
-  const [expenseCategoryOrder, setExpenseCategoryOrder] = useState<EntryCategory[]>(
-    []
-  )
-  const [incomeCategoryOrder, setIncomeCategoryOrder] = useState<EntryCategory[]>(
-    []
-  )
-  const [hydrated, setHydrated] = useState(false)
-
-  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
-  const [activeType, setActiveType] = useState<EntryType>("expense")
-  const [expandedGroupKey, setExpandedGroupKey] = useState<string | null>(null)
-  const [draggedCategory, setDraggedCategory] = useState<EntryCategory | null>(
-    null
-  )
+  const [entriesHydrated, setEntriesHydrated] = useState(false)
 
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
@@ -269,41 +237,17 @@ export default function SpendingCategoriesPage() {
   const [installmentCount, setInstallmentCount] = useState("")
   const [automationStartDate, setAutomationStartDate] = useState(getTodayDate())
 
+  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodKey())
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null)
-  const [selectedTransaction, setSelectedTransaction] =
-    useState<DisplayEntry | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search)
-      const typeParam = params.get("type")
-      const categoryParam = params.get("category")
-
-      if (typeParam === "income" || typeParam === "expense") {
-        setActiveType(typeParam)
-      }
-
-      if (categoryParam) {
-        const groupType = typeParam === "income" ? "income" : "expense"
-        setExpandedGroupKey(getGroupKey(groupType, categoryParam as EntryCategory))
-      }
-    } catch {
-      // silent
-    }
-  }, [])
 
   useEffect(() => {
     try {
       const savedEntries = localStorage.getItem("entries")
       const savedTemplates = localStorage.getItem("automationTemplates")
       const savedPaidScheduledIds = localStorage.getItem("paidScheduledPayments")
-      const savedExpenseOrder = localStorage.getItem("spendingExpenseCategoryOrder")
-      const savedIncomeOrder = localStorage.getItem("spendingIncomeCategoryOrder")
-      const legacyOrder = localStorage.getItem("spendingCategoryOrder")
 
       if (savedEntries) {
         const parsedEntries = JSON.parse(savedEntries)
@@ -321,38 +265,17 @@ export default function SpendingCategoriesPage() {
           Array.isArray(parsedPaidScheduledIds) ? parsedPaidScheduledIds : []
         )
       }
-
-      if (savedExpenseOrder) {
-        const parsedExpenseOrder = JSON.parse(savedExpenseOrder)
-        setExpenseCategoryOrder(
-          Array.isArray(parsedExpenseOrder) ? parsedExpenseOrder : []
-        )
-      } else if (legacyOrder) {
-        const parsedLegacyOrder = JSON.parse(legacyOrder)
-        setExpenseCategoryOrder(
-          Array.isArray(parsedLegacyOrder) ? parsedLegacyOrder : []
-        )
-      }
-
-      if (savedIncomeOrder) {
-        const parsedIncomeOrder = JSON.parse(savedIncomeOrder)
-        setIncomeCategoryOrder(
-          Array.isArray(parsedIncomeOrder) ? parsedIncomeOrder : []
-        )
-      }
     } catch {
       setEntries([])
       setTemplates([])
       setPaidScheduledIds([])
-      setExpenseCategoryOrder([])
-      setIncomeCategoryOrder([])
     } finally {
-      setHydrated(true)
+      setEntriesHydrated(true)
     }
   }, [])
 
   useEffect(() => {
-    if (!hydrated) return
+    if (!entriesHydrated) return
 
     try {
       localStorage.setItem("entries", JSON.stringify(entries))
@@ -361,25 +284,10 @@ export default function SpendingCategoriesPage() {
         "paidScheduledPayments",
         JSON.stringify(paidScheduledIds)
       )
-      localStorage.setItem(
-        "spendingExpenseCategoryOrder",
-        JSON.stringify(expenseCategoryOrder)
-      )
-      localStorage.setItem(
-        "spendingIncomeCategoryOrder",
-        JSON.stringify(incomeCategoryOrder)
-      )
     } catch {
       // silent
     }
-  }, [
-    entries,
-    templates,
-    paidScheduledIds,
-    expenseCategoryOrder,
-    incomeCategoryOrder,
-    hydrated,
-  ])
+  }, [entries, templates, paidScheduledIds, entriesHydrated])
 
   useEffect(() => {
     const validCategories =
@@ -397,30 +305,6 @@ export default function SpendingCategoriesPage() {
   const availablePeriods = useMemo(() => {
     return getAvailablePeriodsFromCurrentYear()
   }, [])
-
-  const effectiveExpenseCategoryOrder = useMemo(() => {
-    const existing = expenseCategoryOrder.filter((categoryName) =>
-      defaultExpenseCategoryOrder.includes(categoryName)
-    )
-
-    const missing = defaultExpenseCategoryOrder.filter(
-      (categoryName) => !existing.includes(categoryName)
-    )
-
-    return [...existing, ...missing]
-  }, [expenseCategoryOrder])
-
-  const effectiveIncomeCategoryOrder = useMemo(() => {
-    const existing = incomeCategoryOrder.filter((categoryName) =>
-      defaultIncomeCategoryOrder.includes(categoryName)
-    )
-
-    const missing = defaultIncomeCategoryOrder.filter(
-      (categoryName) => !existing.includes(categoryName)
-    )
-
-    return [...existing, ...missing]
-  }, [incomeCategoryOrder])
 
   const manualPeriodEntries = useMemo<DisplayEntry[]>(() => {
     return entries
@@ -458,105 +342,156 @@ export default function SpendingCategoriesPage() {
     })
   }, [manualPeriodEntries, confirmedGeneratedEntries])
 
-  const incomeGroups = useMemo<CategoryGroup[]>(() => {
-    const incomeEntries = periodEntries.filter((entry) => entry.type === "income")
-    const usedCategories = new Set<EntryCategory>()
+  const income = periodEntries
+    .filter((entry) => entry.type === "income")
+    .reduce((acc, entry) => acc + entry.amount, 0)
+
+  const expenses = periodEntries
+    .filter((entry) => entry.type === "expense")
+    .reduce((acc, entry) => acc + entry.amount, 0)
+
+  const net = income - expenses
+
+  const earliestPeriod = useMemo(() => {
+    const periods: string[] = []
 
     entries.forEach((entry) => {
-      if (entry.type === "income") usedCategories.add(entry.category)
+      if (entry.date) periods.push(entry.date.slice(0, 7))
     })
 
     templates.forEach((template) => {
-      if (template.type === "income") usedCategories.add(template.category)
+      if (template.automation.startDate) {
+        periods.push(template.automation.startDate.slice(0, 7))
+      }
     })
 
-    incomeEntries.forEach((entry) => usedCategories.add(entry.category))
+    if (periods.length === 0) return selectedPeriod
 
-    const categories = Array.from(
-      new Set([...effectiveIncomeCategoryOrder, ...Array.from(usedCategories)])
-    ).filter((item) => defaultIncomeCategoryOrder.includes(item))
+    return periods.sort()[0]
+  }, [entries, templates, selectedPeriod])
 
-    return categories
-      .map((categoryName) => {
-        const groupEntries = incomeEntries
-          .filter((entry) => entry.category === categoryName)
-          .sort((a, b) => b.date.localeCompare(a.date))
+  const cumulativePeriodKeys = useMemo(() => {
+    return getPeriodRange(earliestPeriod, selectedPeriod)
+  }, [earliestPeriod, selectedPeriod])
 
-        const total = groupEntries.reduce((sum, entry) => sum + entry.amount, 0)
+  const selectedPeriodCutoffDate = useMemo(() => {
+    const currentPeriod = getCurrentPeriodKey()
 
-        return {
-          key: getGroupKey("income", categoryName),
-          type: "income" as const,
-          category: categoryName,
-          total,
-          entries: groupEntries,
-          hasHistory: usedCategories.has(categoryName),
-        }
-      })
-      .sort(
-        (a, b) =>
-          getCategorySortIndex(a.category, effectiveIncomeCategoryOrder) -
-          getCategorySortIndex(b.category, effectiveIncomeCategoryOrder)
-      )
-  }, [entries, templates, periodEntries, effectiveIncomeCategoryOrder])
+    if (selectedPeriod === currentPeriod) {
+      return getTodayDate()
+    }
 
-  const expenseGroups = useMemo<CategoryGroup[]>(() => {
-    const expenseEntries = periodEntries.filter(
-      (entry) => entry.type === "expense"
+    return getEndOfPeriodDate(selectedPeriod)
+  }, [selectedPeriod])
+
+  const cumulativeManualEntries = useMemo<DisplayEntry[]>(() => {
+    return entries
+      .filter((entry) => entry.date <= selectedPeriodCutoffDate)
+      .map((entry) => ({
+        ...entry,
+        source: "manual" as const,
+      }))
+  }, [entries, selectedPeriodCutoffDate])
+
+  const cumulativeGeneratedEntries = useMemo<DisplayEntry[]>(() => {
+    return cumulativePeriodKeys.flatMap((period) =>
+      generateEntriesForPeriod(templates, period).map((entry) => ({
+        ...entry,
+        source: "automation" as const,
+      }))
     )
-    const usedCategories = new Set<EntryCategory>()
+  }, [templates, cumulativePeriodKeys])
 
-    entries.forEach((entry) => {
-      if (entry.type === "expense") usedCategories.add(entry.category)
+  const cumulativeConfirmedGeneratedEntries = useMemo(() => {
+    return cumulativeGeneratedEntries.filter((entry) => {
+      if (entry.date > selectedPeriodCutoffDate) return false
+
+      const behavior = entry.paymentBehavior || "manual"
+
+      if (behavior === "auto_paid") {
+        return isDue(entry.date)
+      }
+
+      return paidScheduledIds.includes(entry.id)
     })
+  }, [cumulativeGeneratedEntries, paidScheduledIds, selectedPeriodCutoffDate])
 
-    templates.forEach((template) => {
-      if (template.type === "expense") usedCategories.add(template.category)
-    })
+  const cashBalance = useMemo(() => {
+    const cumulativeEntries = [
+      ...cumulativeManualEntries,
+      ...cumulativeConfirmedGeneratedEntries,
+    ]
 
-    generatedPeriodEntries.forEach((entry) => {
-      if (entry.type === "expense") usedCategories.add(entry.category)
-    })
+    const totalIncome = cumulativeEntries
+      .filter((entry) => entry.type === "income")
+      .reduce((sum, entry) => sum + entry.amount, 0)
 
-    expenseEntries.forEach((entry) => usedCategories.add(entry.category))
+    const totalExpenses = cumulativeEntries
+      .filter((entry) => entry.type === "expense")
+      .reduce((sum, entry) => sum + entry.amount, 0)
 
-    const categories = Array.from(
-      new Set([...effectiveExpenseCategoryOrder, ...Array.from(usedCategories)])
-    ).filter((item) => defaultExpenseCategoryOrder.includes(item))
+    return totalIncome - totalExpenses
+  }, [cumulativeManualEntries, cumulativeConfirmedGeneratedEntries])
 
-    return categories
-      .map((categoryName) => {
-        const groupEntries = expenseEntries
-          .filter((entry) => entry.category === categoryName)
-          .sort((a, b) => b.date.localeCompare(a.date))
+  const topCategories = useMemo<CategoryPreview[]>(() => {
+    const expenseEntries = periodEntries.filter((entry) => entry.type === "expense")
 
-        const total = groupEntries.reduce((sum, entry) => sum + entry.amount, 0)
-
-        return {
-          key: getGroupKey("expense", categoryName),
-          type: "expense" as const,
-          category: categoryName,
-          total,
-          entries: groupEntries,
-          hasHistory: usedCategories.has(categoryName),
+    const totals = expenseEntries.reduce<Record<string, CategoryPreview>>(
+      (acc, entry) => {
+        if (!acc[entry.category]) {
+          acc[entry.category] = {
+            category: entry.category,
+            total: 0,
+            entries: [],
+          }
         }
-      })
-      .sort(
-        (a, b) =>
-          getCategorySortIndex(a.category, effectiveExpenseCategoryOrder) -
-          getCategorySortIndex(b.category, effectiveExpenseCategoryOrder)
-      )
-  }, [
-    entries,
-    templates,
-    periodEntries,
-    generatedPeriodEntries,
-    effectiveExpenseCategoryOrder,
-  ])
 
-  const activeGroups = activeType === "income" ? incomeGroups : expenseGroups
-  const currentCategories =
-    type === "income" ? incomeCategories : expenseCategories
+        acc[entry.category].total += entry.amount
+        acc[entry.category].entries.push(entry)
+        return acc
+      },
+      {}
+    )
+
+    return Object.values(totals)
+      .filter((group) => group.category !== "other" && group.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+  }, [periodEntries])
+
+  const spendingInsight = useMemo(() => {
+    if (periodEntries.length === 0 && generatedPeriodEntries.length > 0) {
+      return copy.spending.status.scheduledOnly
+    }
+
+    if (periodEntries.length === 0) {
+      return copy.spending.status.noData
+    }
+
+    if (income <= 0 && expenses > 0) {
+      return copy.spending.status.noIncome
+    }
+
+    if (income <= 0 && expenses <= 0) {
+      return copy.spending.status.noActivity
+    }
+
+    const spendingRatio = (expenses / income) * 100
+
+    if (spendingRatio < 50) {
+      return copy.spending.status.savingMostIncome
+    }
+
+    if (spendingRatio < 80) {
+      return copy.spending.status.spendingControlled
+    }
+
+    if (spendingRatio <= 100) {
+      return copy.spending.status.spendingMostIncome
+    }
+
+    return copy.spending.status.spendingMoreThanEarn
+  }, [copy, periodEntries.length, generatedPeriodEntries.length, income, expenses])
 
   const installmentPreview = useMemo(() => {
     const parsedTotal = Number(installmentTotalAmount)
@@ -579,8 +514,7 @@ export default function SpendingCategoriesPage() {
       perPayment,
       currency
     )} ${formatInstallmentFrequencyLabel(
-      installmentFrequency,
-      copy
+      installmentFrequency
     )} · ${parsedCount} payments`
   }, [
     automationMode,
@@ -588,7 +522,6 @@ export default function SpendingCategoriesPage() {
     installmentCount,
     installmentFrequency,
     currency,
-    copy,
   ])
 
   const recurringPreview = useMemo(() => {
@@ -607,8 +540,8 @@ export default function SpendingCategoriesPage() {
     return `${signal}${formatCurrency(
       parsedAmount,
       currency
-    )} ${formatRecurringFrequencyLabel(recurringFrequency, copy)}`
-  }, [automationMode, amount, recurringFrequency, type, currency, copy])
+    )} ${formatRecurringFrequencyLabel(recurringFrequency)}`
+  }, [automationMode, amount, recurringFrequency, type, currency])
 
   const resetForm = () => {
     setDescription("")
@@ -630,80 +563,8 @@ export default function SpendingCategoriesPage() {
     setError("")
   }
 
-  const openCreateModal = (selectedType: EntryType, selectedCategory: EntryCategory) => {
+  const openCreateModal = () => {
     resetForm()
-    setType(selectedType)
-    setCategory(selectedCategory)
-    setAutomationMode("one_time")
-    setIsModalOpen(true)
-  }
-
-  const openTransactionDetail = (entry: DisplayEntry) => {
-    setSelectedTransaction(entry)
-    setIsDetailOpen(true)
-  }
-
-  const closeTransactionDetail = () => {
-    setSelectedTransaction(null)
-    setIsDetailOpen(false)
-  }
-
-  const openEditModal = (entry: DisplayEntry) => {
-    closeTransactionDetail()
-
-    if (entry.source === "manual") {
-      setDescription(entry.description)
-      setAmount(String(entry.amount))
-      setType(entry.type)
-      setCategory(entry.category)
-      setDate(entry.date)
-
-      setAutomationMode("one_time")
-      setPaymentBehavior("manual")
-      setRecurringFrequency("monthly")
-      setInstallmentFrequency("monthly")
-      setInstallmentTotalAmount("")
-      setInstallmentCount("")
-      setAutomationStartDate(entry.date)
-
-      setEditingEntryId(entry.id)
-      setEditingTemplateId(null)
-      setError("")
-      setIsModalOpen(true)
-      return
-    }
-
-    const template = templates.find((item) => item.id === entry.templateId)
-    if (!template) return
-
-    setDescription(template.description)
-    setType(template.type)
-    setCategory(template.category)
-    setPaymentBehavior(template.automation.paymentBehavior || "manual")
-    setEditingEntryId(null)
-    setEditingTemplateId(template.id)
-    setError("")
-
-    if (template.automation.kind === "recurring") {
-      setAutomationMode("recurring")
-      setAmount(String(template.automation.amount))
-      setRecurringFrequency(template.automation.frequency)
-      setAutomationStartDate(template.automation.startDate)
-      setDate(template.automation.startDate)
-      setInstallmentTotalAmount("")
-      setInstallmentCount("")
-    }
-
-    if (template.automation.kind === "installment") {
-      setAutomationMode("installment")
-      setInstallmentTotalAmount(String(template.automation.totalAmount))
-      setInstallmentCount(String(template.automation.installmentCount))
-      setInstallmentFrequency(template.automation.frequency)
-      setAutomationStartDate(template.automation.startDate)
-      setDate(template.automation.startDate)
-      setAmount("")
-    }
-
     setIsModalOpen(true)
   }
 
@@ -712,53 +573,11 @@ export default function SpendingCategoriesPage() {
     resetForm()
   }
 
-  const deleteDisplayEntry = (entry: DisplayEntry) => {
-    if (entry.source === "manual") {
-      setEntries((prev) => prev.filter((item) => item.id !== entry.id))
-      closeTransactionDetail()
-      return
-    }
-
-    if (entry.templateId) {
-      setTemplates((prev) =>
-        prev.filter((template) => template.id !== entry.templateId)
-      )
-      closeTransactionDetail()
-    }
-  }
-
-  const handleCategoryDrop = (targetCategory: EntryCategory) => {
-    if (!draggedCategory || draggedCategory === targetCategory) {
-      setDraggedCategory(null)
-      return
-    }
-
-    if (activeType === "expense") {
-      setExpenseCategoryOrder((prev) =>
-        moveItem(
-          prev.length > 0 ? prev : defaultExpenseCategoryOrder,
-          draggedCategory,
-          targetCategory
-        )
-      )
-    } else {
-      setIncomeCategoryOrder((prev) =>
-        moveItem(
-          prev.length > 0 ? prev : defaultIncomeCategoryOrder,
-          draggedCategory,
-          targetCategory
-        )
-      )
-    }
-
-    setDraggedCategory(null)
-  }
-
   const handleSubmit = () => {
     const now = new Date().toISOString()
 
     if (!description.trim()) {
-      setError(`${copy.forms.description} is required.`)
+      setError("Please add a description.")
       return
     }
 
@@ -766,12 +585,12 @@ export default function SpendingCategoriesPage() {
       const parsedAmount = Number(amount)
 
       if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError(`${copy.forms.amount} is required.`)
+        setError("Please enter a valid amount.")
         return
       }
 
       if (!date) {
-        setError(`${copy.forms.date} is required.`)
+        setError("Please select a date.")
         return
       }
 
@@ -821,12 +640,12 @@ export default function SpendingCategoriesPage() {
       const parsedAmount = Number(amount)
 
       if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError(`${copy.forms.amount} is required.`)
+        setError("Please enter a valid amount.")
         return
       }
 
       if (!automationStartDate) {
-        setError(`${copy.forms.startDate} is required.`)
+        setError("Please select a start date.")
         return
       }
 
@@ -879,17 +698,17 @@ export default function SpendingCategoriesPage() {
         Number.isNaN(parsedTotal) ||
         parsedTotal <= 0
       ) {
-        setError(`${copy.forms.totalAmount} is required.`)
+        setError("Please enter a valid total amount.")
         return
       }
 
       if (Number.isNaN(parsedCount) || parsedCount < 2) {
-        setError(`${copy.forms.numberOfPayments} is required.`)
+        setError("Please enter a valid number of payments.")
         return
       }
 
       if (!automationStartDate) {
-        setError(`${copy.forms.startDate} is required.`)
+        setError("Please select a start date.")
         return
       }
 
@@ -951,175 +770,24 @@ export default function SpendingCategoriesPage() {
   const fieldClass =
     "w-full h-[46px] min-h-[46px] appearance-none bg-zinc-800/70 border border-white/5 rounded-[18px] px-4 text-white outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/25 transition-colors"
 
-  const renderGroup = (group: CategoryGroup) => {
-    const isExpanded = expandedGroupKey === group.key
-    const Icon = categoryIcons[group.category]
-    const valueColor = group.type === "income" ? "text-green-500" : "text-red-500"
-    const sign = group.type === "income" ? "+" : "-"
-    const countLabel =
-      group.type === "income"
-        ? `${group.entries.length} ${
-            group.entries.length === 1
-              ? copy.categories.entry
-              : copy.categories.entries
-          }`
-        : `${group.entries.length} ${
-            group.entries.length === 1
-              ? copy.categories.transaction
-              : copy.categories.transactions
-          }`
-
-    return (
-      <div key={group.key} className="border-b border-white/5 last:border-b-0">
-        <button
-          type="button"
-          draggable
-          onDragStart={() => setDraggedCategory(group.category)}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={() => handleCategoryDrop(group.category)}
-          onClick={() =>
-            setExpandedGroupKey((prev) => (prev === group.key ? null : group.key))
-          }
-          className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-        >
-          <div className="min-w-0 flex items-center gap-3">
-            <GripVertical
-              size={14}
-              strokeWidth={2}
-              className="text-zinc-700 shrink-0 cursor-grab"
-            />
-
-            <Icon
-              size={18}
-              strokeWidth={2}
-              className={`shrink-0 transition-colors duration-200 ${
-                isExpanded ? "text-zinc-300" : "text-zinc-500"
-              }`}
-            />
-
-            <div className="min-w-0">
-              <p className="text-zinc-200 font-medium">
-                {getCategoryLabel(group.category, copy.categoriesNames)}
-              </p>
-
-              {!isExpanded && (
-                <p className="text-xs text-zinc-600 mt-1">{countLabel}</p>
-              )}
-            </div>
-          </div>
-
-          {!isExpanded && (
-            <div className="text-right shrink-0 ml-auto">
-              <p className={`text-sm font-medium ${valueColor}`}>
-                {group.total > 0 ? sign : ""}
-                {formatCurrency(group.total, currency)}
-              </p>
-            </div>
-          )}
-        </button>
-
-        {isExpanded && (
-          <div className="px-5 pb-5">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-zinc-500 text-xs">{copy.categories.totalThisMonth}</p>
-                <p className={`text-lg font-medium mt-1 ${valueColor}`}>
-                  {group.total > 0 ? sign : ""}
-                  {formatCurrency(group.total, currency)}
-                </p>
-              </div>
-
-              <p className="text-zinc-600 text-xs">{countLabel}</p>
-            </div>
-
-            {group.entries.length === 0 ? (
-              <div className="rounded-[22px] bg-zinc-950/25 border border-white/5 p-4">
-                <p className="text-zinc-400 text-sm">
-                  {copy.categories.noActivity}
-                </p>
-                <p className="text-zinc-600 text-sm mt-1">
-                  {copy.categories.persistentGroup}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {group.entries.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => openTransactionDetail(entry)}
-                    className="w-full flex items-center justify-between gap-4 py-3 text-left transition-colors duration-200 ease-out hover:bg-white/[0.02]"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-zinc-200 text-sm truncate">
-                        {entry.description}
-                      </p>
-                      <p className="text-xs text-zinc-600 mt-1">
-                        {formatDate(entry.date)}
-                        {entry.automationLabel ? ` · ${getAutomationLabel(entry.automationLabel, copy)}` : ""}
-                      </p>
-                    </div>
-
-                    <span className={`text-sm font-medium shrink-0 ${valueColor}`}>
-                      {entry.type === "income" ? "+" : "-"}
-                      {formatCurrency(entry.amount, currency)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => openCreateModal(group.type, group.category)}
-              className="mt-4 w-full rounded-full bg-zinc-800/80 border border-white/5 text-zinc-200 h-[46px] text-sm font-medium transition-all duration-200 ease-out hover:bg-zinc-800 active:scale-[0.98]"
-            >
-              + {copy.actions.add} {getCategoryLabel(group.category, copy.categoriesNames).toLowerCase()}{" "}
-              {group.type === "income" ? copy.forms.income.toLowerCase() : copy.forms.expense.toLowerCase()}
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <>
       <main className="min-h-screen bg-black text-white px-5 py-8 pb-32">
         <div className="max-w-4xl mx-auto">
-          <header className="mb-6">
-            <Link
-              href="/spending"
-              className="inline-flex items-center gap-2 text-zinc-600 text-sm mb-5 transition-colors hover:text-zinc-400"
-            >
-              <ArrowLeft size={16} strokeWidth={2} />
-              {copy.nav.spending}
-            </Link>
-
+          <header className="mb-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  {copy.categories.title}
+                  {copy.spending.title}
                 </h1>
                 <p className="text-zinc-500 mt-2">
-                  {copy.categories.subtitle}
+                  {copy.spending.subtitle}
                 </p>
               </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  openCreateModal(activeType, activeGroups[0]?.category || "food")
-                }
-                className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-black transition-all duration-200 ease-out active:scale-[0.96]"
-                aria-label={copy.spending.add}
-              >
-                <Plus size={20} strokeWidth={2} />
-              </button>
             </div>
           </header>
 
-          <div className="mb-5">
+          <div className="mb-4">
             <div className="relative inline-block">
               <select
                 value={selectedPeriod}
@@ -1139,40 +807,98 @@ export default function SpendingCategoriesPage() {
             </div>
           </div>
 
-          <div className="mb-6 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveType("expense")
-                setExpandedGroupKey(null)
-              }}
-              className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
-                activeType === "expense"
-                  ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                  : "bg-zinc-900/60 border-white/5 text-zinc-500"
-              }`}
-            >
-              {copy.categories.expenses}
-            </button>
+          <section className="mb-6">
+            <p className="text-zinc-500 text-sm mb-3">{copy.spending.cash}</p>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveType("income")
-                setExpandedGroupKey(null)
-              }}
-              className={`rounded-full h-[42px] text-sm border transition-all duration-200 ease-out active:scale-[0.98] ${
-                activeType === "income"
-                  ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                  : "bg-zinc-900/60 border-white/5 text-zinc-500"
-              }`}
-            >
-              {copy.categories.income}
-            </button>
-          </div>
+            <p className="text-5xl font-semibold tracking-tight text-white">
+              {formatCurrency(cashBalance, currency)}
+            </p>
+
+            <div className="mt-4 flex gap-7 flex-wrap text-sm">
+              <div className="flex flex-col">
+                <span className="text-zinc-500">{copy.spending.income}</span>
+                <span className="text-white font-medium">
+                  {formatCurrency(income, currency)}
+                </span>
+              </div>
+
+              <div className="flex flex-col">
+                <span className="text-zinc-500">{copy.spending.expenses}</span>
+                <span className="text-white font-medium">
+                  {formatCurrency(expenses, currency)}
+                </span>
+              </div>
+
+              <div className="flex flex-col">
+                <span className="text-zinc-500">{copy.spending.thisMonth}</span>
+                <span
+                  className={`font-medium ${
+                    net >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {net >= 0 ? "+" : ""}
+                  {formatCurrency(net, currency)}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-sm text-zinc-400 leading-relaxed mt-5">
+              {spendingInsight}
+            </p>
+
+            <div className="mt-6 grid grid-cols-3 gap-4">
+              <Link
+                href="/spending/categories"
+                className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label={copy.spending.categories}
+              >
+                <Tags
+                  size={21}
+                  strokeWidth={2}
+                  className="text-zinc-500 transition-colors duration-200 group-hover:text-[var(--accent)]"
+                />
+                <span className="text-xs text-zinc-500 transition-colors duration-200 group-hover:text-white">
+                  {copy.spending.categories}
+                </span>
+              </Link>
+
+              <Link
+                href="/spending/scheduled"
+                className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label={copy.spending.scheduled}
+              >
+                <Repeat
+                  size={21}
+                  strokeWidth={2}
+                  className="text-zinc-500 transition-colors duration-200 group-hover:text-[var(--accent)]"
+                />
+                <span className="text-xs text-zinc-500 transition-colors duration-200 group-hover:text-white">
+                  {copy.spending.scheduled}
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="group flex flex-col items-center justify-center gap-2 py-2 transition-all duration-200 ease-out active:scale-[0.96]"
+                aria-label={copy.spending.add}
+              >
+                <Plus
+                  size={22}
+                  strokeWidth={2}
+                  className="text-[var(--accent)] transition-colors duration-200"
+                />
+                <span className="text-xs text-white">{copy.spending.add}</span>
+              </button>
+            </div>
+
+            <div className="h-px bg-white/5 mt-5" />
+          </section>
 
           <section className="mb-24">
-            {activeGroups.length === 0 ? (
+            <p className="text-white text-sm font-medium mb-3">{copy.spending.topCategories}</p>
+
+            {topCategories.length === 0 ? (
               <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 p-5">
                 <p className="text-zinc-300 text-sm">{copy.emptyStates.noActivity}</p>
                 <p className="text-zinc-600 text-sm mt-1">
@@ -1180,116 +906,44 @@ export default function SpendingCategoriesPage() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-[26px] bg-zinc-900/35 border border-white/5 overflow-hidden">
-                {activeGroups.map((group) => renderGroup(group))}
+              <div className="grid gap-3 text-sm">
+                {topCategories.map((group) => {
+                  const Icon = categoryIcons[group.category] || Circle
+
+                  return (
+                    <div
+                      key={group.category}
+                      className="flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon
+                          size={16}
+                          strokeWidth={2}
+                          className="text-zinc-500 shrink-0"
+                        />
+                        <span className="text-zinc-400 truncate">
+                          {getCategoryLabel(group.category, copy)}
+                        </span>
+                      </div>
+
+                      <span className="text-white font-medium">
+                        {formatCurrency(group.total, currency)}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )}
+
+            <Link
+              href="/spending/categories"
+              className="inline-flex mt-5 text-xs text-zinc-500 transition-colors duration-200 hover:text-[var(--accent)]"
+            >
+              {copy.spending.viewAllCategories}
+            </Link>
           </section>
         </div>
       </main>
-
-      {isDetailOpen && selectedTransaction && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 animate-[modalOverlayEnter_150ms_ease-out]"
-          onClick={closeTransactionDetail}
-        >
-          <div className="absolute inset-0 flex items-end md:items-center md:justify-center p-3 md:p-6">
-            <div
-              className="w-full md:max-w-lg rounded-t-[30px] md:rounded-[30px] bg-zinc-900/95 border border-white/5 shadow-[0_24px_80px_rgba(0,0,0,0.5)] p-4 md:p-5 animate-[modalContentEnter_180ms_ease-out]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-white text-sm font-medium">
-                  {copy.categories.transaction}
-                </p>
-
-                <button
-                  type="button"
-                  onClick={closeTransactionDetail}
-                  className="text-zinc-600 hover:text-zinc-400 transition-colors duration-200 ease-out cursor-pointer"
-                >
-                  {copy.actions.close}
-                </button>
-              </div>
-
-              <div className="grid gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight">
-                    {selectedTransaction.description}
-                  </h2>
-
-                  <p
-                    className={`text-xl font-medium mt-2 ${
-                      selectedTransaction.type === "income"
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {selectedTransaction.type === "income" ? "+" : "-"}
-                    {formatCurrency(selectedTransaction.amount, currency)}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
-                    <p className="text-zinc-500 text-xs mb-2">{copy.forms.category}</p>
-                    <p className="text-white text-sm font-medium">
-                      {getCategoryLabel(selectedTransaction.category, copy.categoriesNames)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[22px] bg-zinc-800/50 border border-white/5 p-4">
-                    <p className="text-zinc-500 text-xs mb-2">{copy.forms.type}</p>
-                    <p className="text-white text-sm font-medium">
-                      {selectedTransaction.type === "income"
-                        ? copy.forms.income
-                        : copy.forms.expense}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
-                  <p className="text-zinc-500 text-xs mb-2">{copy.forms.date}</p>
-                  <p className="text-white text-sm font-medium">
-                    {formatDate(selectedTransaction.date)}
-                  </p>
-                </div>
-
-                {(selectedTransaction.automationKind ||
-                  selectedTransaction.automationLabel) && (
-                  <div className="rounded-[22px] bg-zinc-800/40 border border-white/5 p-4">
-                    <p className="text-zinc-500 text-xs mb-2">{copy.scheduled.title}</p>
-                    <p className="text-white text-sm font-medium">
-                      {selectedTransaction.automationKind === "installment"
-                        ? copy.forms.installment
-                        : copy.forms.recurring}
-                      {selectedTransaction.automationLabel
-                        ? ` · ${getAutomationLabel(selectedTransaction.automationLabel, copy)}`
-                        : ""}
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => openEditModal(selectedTransaction)}
-                  className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-1"
-                >
-                  {copy.actions.edit} {copy.categories.transaction}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => deleteDisplayEntry(selectedTransaction)}
-                  className="w-full text-center text-red-400 text-xs py-1.5 transition-colors duration-200 ease-out hover:text-red-300 cursor-pointer"
-                >
-                  {copy.actions.delete} {copy.categories.transaction}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isModalOpen && (
         <div
@@ -1305,7 +959,7 @@ export default function SpendingCategoriesPage() {
                 <p className="text-white text-sm font-medium">
                   {editingEntryId || editingTemplateId
                     ? `${copy.actions.edit} ${copy.categories.transaction}`
-                    : copy.spending.add}
+                    : `${copy.actions.add} ${copy.categories.transaction}`}
                 </p>
 
                 <button
@@ -1362,11 +1016,13 @@ export default function SpendingCategoriesPage() {
                     }
                     className={fieldClass}
                   >
-                    {currentCategories.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {getCategoryLabel(item.value, copy.categoriesNames)}
-                      </option>
-                    ))}
+                    {(type === "income" ? incomeCategories : expenseCategories).map(
+                      (item) => (
+                        <option key={item.value} value={item.value}>
+                          {getCategoryLabel(item.value, copy)}
+                        </option>
+                      )
+                    )}
                   </select>
                 </div>
 
@@ -1575,8 +1231,8 @@ export default function SpendingCategoriesPage() {
                   className="w-full rounded-full bg-[var(--accent)] text-black h-[50px] font-medium transition-all duration-200 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.98] cursor-pointer touch-manipulation mt-2"
                 >
                   {editingEntryId || editingTemplateId
-                    ? copy.actions.save
-                    : copy.spending.add}
+                    ? copy.actions.saveChanges
+                    : `${copy.actions.add} ${copy.categories.transaction}`}
                 </button>
 
                 {(editingEntryId || editingTemplateId) && (
